@@ -298,14 +298,18 @@ private fun AgentCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = agent.authorName ?: agent.author ?: stringResource(Res.string.unknown_author),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // Only a human-readable author is worth a line; the raw author user ID is noise.
+            val authorName = agent.authorName
+            if (authorName != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = authorName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
