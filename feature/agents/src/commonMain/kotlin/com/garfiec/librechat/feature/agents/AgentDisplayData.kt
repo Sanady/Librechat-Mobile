@@ -8,7 +8,6 @@ data class AgentCardDisplayData(
     val name: String,
     val description: String?,
     val avatarUrl: String?,
-    val author: String?,
     val authorName: String?,
 )
 

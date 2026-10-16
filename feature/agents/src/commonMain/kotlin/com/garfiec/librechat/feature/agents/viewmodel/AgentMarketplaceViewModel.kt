@@ -69,7 +69,6 @@ class AgentMarketplaceViewModel(
             name = name ?: "Unnamed Agent",
             description = description,
             avatarUrl = resolvedUrl,
-            author = author,
             authorName = authorName,
         )
     }
