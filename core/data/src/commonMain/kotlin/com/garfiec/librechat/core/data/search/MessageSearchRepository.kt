@@ -1,5 +1,6 @@
 package com.garfiec.librechat.core.data.search
 
+import com.garfiec.librechat.core.common.BackendVersion
 import com.garfiec.librechat.core.common.identity.AccountState
 import com.garfiec.librechat.core.common.identity.ActiveAccountProvider
 import com.garfiec.librechat.core.common.identity.currentAccountId
@@ -46,12 +47,15 @@ interface MessageSearchRepository {
      *
      * Callers debounce typing and collect with `flatMapLatest`, so a newer query cancels this one.
      * [scanFrom] resumes a scan-engine search where the last result's [ScanProgress] stopped.
+     * [remotePageSize] is how many hits the server is asked for; a caller that shows a few asks
+     * for few.
      */
     fun search(
         query: String,
         limit: Int = DEFAULT_LIMIT,
         scanFrom: ScanCursor? = null,
         options: SearchOptions = SearchOptions.Default,
+        remotePageSize: Int = MessagesApi.SEARCH_PAGE_SIZE,
     ): Flow<MessageSearchResult>
 
     /** The models and endpoints the active account's indexed messages came from, for the filters. */
@@ -86,6 +90,7 @@ class MessageSearchRepositoryImpl(
     private val activity: LocalSearchActivity,
     private val indexState: SearchIndexState,
     private val snippetDispatcher: CoroutineDispatcher,
+    private val backendVersion: () -> String? = { null },
     private val clock: Clock = Clock.System,
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) : MessageSearchRepository {
@@ -98,12 +103,13 @@ class MessageSearchRepositoryImpl(
         limit: Int,
         scanFrom: ScanCursor?,
         options: SearchOptions,
+        remotePageSize: Int,
     ): Flow<MessageSearchResult> =
         activeAccountProvider.state
             .map { (it as? AccountState.Resolved)?.id?.value }
             .distinctUntilChanged()
             .flatMapLatest { accountId ->
-                if (accountId == null) emptyFlow() else searchFor(SearchRequest(accountId, query, limit, scanFrom, options))
+                if (accountId == null) emptyFlow() else searchFor(SearchRequest(accountId, query, limit, scanFrom, options, remotePageSize))
             }
 
     override suspend fun filterValues(): SearchFilterValues {
@@ -120,6 +126,7 @@ class MessageSearchRepositoryImpl(
         val limit: Int,
         val scanFrom: ScanCursor?,
         val options: SearchOptions,
+        val remotePageSize: Int,
     )
 
     private fun searchFor(request: SearchRequest) = flow {
@@ -159,10 +166,11 @@ class MessageSearchRepositoryImpl(
         }
         // A short query stays local without a note: the server is asked from 3 characters.
         val longEnough = request.query.trim().length >= MIN_REMOTE_CHARS
+        val skipped = chosen ?: if (longEnough) remoteBlocker(unknownBlocks = false) else null
         // Before the first capability probe answers (a cold start with nothing cached) the server
         // isn't known to be off: the local hits go out as "searching", and the probe gets a moment.
-        val probePending = chosen == null && longEnough && capability.serverSearchEnabled.first() == null
-        val skipped = chosen ?: if (longEnough && !probePending) remoteBlocker() else null
+        // Read again, so an answer of "off" landing since the check above is caught by the wait.
+        val probePending = skipped == null && longEnough && capability.serverSearchEnabled.first() != true
         val remoteEligible = skipped == null && longEnough
         val base = MessageSearchResult(
             accountId = accountId,
@@ -179,6 +187,7 @@ class MessageSearchRepositoryImpl(
         if (skipped == RemoteSkipReason.Offline) {
             // Back online, the server half runs after all; a newer query cancels the wait.
             connectivity.isConnected.first { it }
+            if (capability.serverSearchEnabled.first() == null) withTimeoutOrNull(PROBE_WAIT) { capability.refresh() }
             remoteBlocker()?.let { blocker ->
                 if (blocker != skipped) emit(base.copy(remoteSkipped = blocker))
                 return@flow
@@ -190,7 +199,11 @@ class MessageSearchRepositoryImpl(
         }
         if (!remoteEligible) return@flow
         if (probePending) {
-            withTimeoutOrNull(PROBE_WAIT) { capability.serverSearchEnabled.first { it != null } }
+            withTimeoutOrNull(PROBE_WAIT) {
+                // The session's probe may have given up offline; nothing else would ask again.
+                if (capability.serverSearchEnabled.first() == null) capability.refresh()
+                capability.serverSearchEnabled.first { it != null }
+            }
             remoteBlocker()?.let { blocker ->
                 emit(base.copy(remoteStatus = RemoteSearchStatus.Unavailable, remoteSkipped = blocker))
                 return@flow
@@ -204,9 +217,11 @@ class MessageSearchRepositoryImpl(
     /** [base] with the server's hits merged in, or marked failed; [base] itself after a switch. */
     private suspend fun withRemote(request: SearchRequest, base: MessageSearchResult, terms: List<String>): MessageSearchResult {
         val accountId = request.accountId
-        val remote = remoteCache.get(accountId, request.query)
-            ?: when (val fetched = safeApiCall { messagesApi.searchMessages(request.query) }) {
-                is Result.Success -> fetched.data.messages.also { remoteCache.put(accountId, request.query, it) }
+        val pageSize = request.remotePageSize
+        val remote = remoteCache.get(accountId, request.query, pageSize)
+            ?: when (val fetched = safeApiCall { messagesApi.searchMessages(request.query, pageSize) }) {
+                // An older server answers its default whatever was asked; keep what was asked for, as the cache does.
+                is Result.Success -> fetched.data.messages.take(pageSize).also { remoteCache.put(accountId, request.query, pageSize, it) }
                 else -> null
             }
         // The request ran on the account that was live when it was sent; a reply landing after a
@@ -236,8 +251,14 @@ class MessageSearchRepositoryImpl(
         return base.copy(
             hits = base.hits + remoteHits,
             remoteStatus = RemoteSearchStatus.Done,
-            remoteCapped = remote.size >= MessagesApi.SEARCH_PAGE_SIZE || remote.size == MessagesApi.SERVER_DEFAULT_PAGE_SIZE,
+            remoteCapped = remote.size >= pageSize || (remote.size == MessagesApi.SERVER_DEFAULT_PAGE_SIZE && mayIgnorePageSize()),
         )
+    }
+
+    /** A server older than v0.8.8-rc2 answers at most 20 hits whatever `pageSize` asked for. */
+    private fun mayIgnorePageSize(): Boolean {
+        val version = backendVersion() ?: return true
+        return !BackendVersion.isCompatibleOrNewer(version, PAGE_SIZE_SINCE)
     }
 
     /** A local row and the terms to mark in it (a regex hit marks what it actually matched). */
@@ -281,7 +302,7 @@ class MessageSearchRepositoryImpl(
         val result = scanEngine.scan(
             accountId = request.accountId,
             matcher = matcher,
-            from = request.scanFrom ?: ScanCursor.START,
+            from = request.scanFrom ?: if (options.sort == SearchSort.Oldest) ScanCursor.START_OLDEST else ScanCursor.START,
             budget = ScanBudget(maxMatches = request.limit),
             notBefore = options.since,
             admit = { row ->
@@ -296,9 +317,7 @@ class MessageSearchRepositoryImpl(
             val inReasoning = hit.row.visibleLength?.let { hit.firstMatch.first >= it } ?: false
             LocalRow(hit.row, listOf(matched).filter { it.isNotEmpty() }, inReasoning)
         }
-        // The scan walks newest first; an oldest-first sort reverses what it found.
-        val ordered = if (options.sort == SearchSort.Oldest) rows.reversed() else rows
-        return LocalRead(ordered, ScanProgress(result.scanned, searchDao.countForAccount(request.accountId), result.next))
+        return LocalRead(rows, ScanProgress(result.scanned, searchDao.countForAccount(request.accountId), result.next))
     }
 
     private suspend fun ftsRows(request: SearchRequest, match: String): List<MessageSearchRow> {
@@ -334,11 +353,20 @@ class MessageSearchRepositoryImpl(
             .flatMap { conversationDao.titlesFor(accountId, it) }
             .associateBy { it.conversationId }
 
-    private suspend fun remoteBlocker(): RemoteSkipReason? {
-        if (capability.serverSearchEnabled.first() != true) return RemoteSkipReason.ServerOff
+    /**
+     * Why the server can't be asked, or null when it can. Connectivity comes first: offline, the
+     * capability may be unknown or stale, and only "offline" leads to a retry once it's back.
+     * [unknownBlocks] false lets a not-yet-probed server through, for the caller to wait on.
+     */
+    private suspend fun remoteBlocker(unknownBlocks: Boolean = true): RemoteSkipReason? {
         // An unanswered connectivity flow must not hold the local results back.
         val online = withTimeoutOrNull(CONNECTIVITY_WAIT) { connectivity.isConnected.first() } == true
-        return if (online) null else RemoteSkipReason.Offline
+        if (!online) return RemoteSkipReason.Offline
+        return when (capability.serverSearchEnabled.first()) {
+            true -> null
+            null -> if (unknownBlocks) RemoteSkipReason.ServerOff else null
+            false -> RemoteSkipReason.ServerOff
+        }
     }
 
     private fun MessageSearchRow.toHit(
@@ -433,6 +461,9 @@ class MessageSearchRepositoryImpl(
 
         /** How long a search waits for the first capability probe before calling the server off. */
         val PROBE_WAIT = 2.seconds
+
+        /** The first release whose search route honours `pageSize`. */
+        const val PAGE_SIZE_SINCE = "0.8.8-rc2"
     }
 }
 
@@ -440,22 +471,30 @@ class MessageSearchRepositoryImpl(
  * The last few server answers, so backspacing over a query doesn't fetch it again. Keyed by
  * account and query, and an entry for another account is dropped on the next lookup, so a switch
  * clears it. Entries expire after a minute; local hits cover anything newer.
+ *
+ * An entry remembers the page size it was fetched with and serves a request for that many or
+ * fewer, so the Search screen's answer serves the drawer but the drawer's never serves the screen.
  */
 internal class RemoteSearchCache(private val clock: Clock) {
-    private val lock = Mutex()
-    private val entries = LinkedHashMap<Pair<String, String>, Pair<Instant, List<Message>>>()
+    private class Entry(val at: Instant, val pageSize: Int, val messages: List<Message>)
 
-    suspend fun get(accountId: String, query: String): List<Message>? = lock.withLock {
+    private val lock = Mutex()
+    private val entries = LinkedHashMap<Pair<String, String>, Entry>()
+
+    suspend fun get(accountId: String, query: String, pageSize: Int): List<Message>? = lock.withLock {
         entries.keys.removeAll { it.first != accountId }
         val key = accountId to query.trim()
         val entry = entries.remove(key) ?: return@withLock null
-        if (clock.now() - entry.first > TTL) return@withLock null
+        if (clock.now() - entry.at > TTL) return@withLock null
         entries[key] = entry
-        entry.second
+        entry.messages.takeIf { entry.pageSize >= pageSize }?.take(pageSize)
     }
 
-    suspend fun put(accountId: String, query: String, messages: List<Message>) = lock.withLock {
-        entries[accountId to query.trim()] = clock.now() to messages
+    suspend fun put(accountId: String, query: String, pageSize: Int, messages: List<Message>) = lock.withLock {
+        val key = accountId to query.trim()
+        val kept = entries[key]?.takeIf { it.pageSize > pageSize && clock.now() - it.at <= TTL }
+        entries.remove(key)
+        entries[key] = kept ?: Entry(clock.now(), pageSize, messages)
         while (entries.size > CAPACITY) entries.remove(entries.keys.first())
     }
 

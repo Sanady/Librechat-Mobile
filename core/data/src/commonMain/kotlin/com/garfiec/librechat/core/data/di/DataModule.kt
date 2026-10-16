@@ -158,7 +158,14 @@ val dataModule = module {
     single { LocalSearchActivity() }
     single<SearchIndexWindow> { PrefetchGateSearchIndexWindow(get()) }
     single { MessageScanEngine(dao = get(), matchDispatcher = get(KoinQualifiers.Default)) }
-    singleOf(::SearchCapabilityRepositoryImpl) bind SearchCapabilityRepository::class
+    single<SearchCapabilityRepository> {
+        SearchCapabilityRepositoryImpl(
+            searchApi = get(),
+            cache = get(),
+            activeAccountProvider = get(),
+            scope = get<CoroutineScope>(KoinQualifiers.ApplicationScope),
+        )
+    }
     single<MessageSearchRepository> {
         MessageSearchRepositoryImpl(
             searchDao = get(),
@@ -171,6 +178,7 @@ val dataModule = module {
             activity = get(),
             indexState = get(),
             snippetDispatcher = get(KoinQualifiers.Default),
+            backendVersion = get<ConfigRepository>().detectedBackendVersion::value,
         )
     }
 
@@ -246,7 +254,6 @@ val dataModule = module {
             tagDao = get(),
             prefetchWatermarkDao = get(),
             ioDispatcher = get(KoinQualifiers.IO),
-            searchDao = get(),
             searchIndexMaintenance = get(),
         )
     }
@@ -475,6 +482,7 @@ val dataModule = module {
             roster = get(),
             json = get(),
             dispatcher = get(KoinQualifiers.Default),
+            searchIndexMaintenance = get(),
         )
     }
 
