@@ -109,6 +109,16 @@ gh attestation verify switchboard-vYYYY.MM.P.apk \
 
 A pass confirms the exact bytes you downloaded came from that workflow. The run and attestation are also linked from each release's notes — but those links are convenience, not proof; only the command above verifies the bytes in your hand.
 
+## Install (iOS)
+
+### TestFlight (recommended)
+
+Join the public beta at **[testflight.apple.com/join/pVhFr3a5](https://testflight.apple.com/join/pVhFr3a5)**. Install the [TestFlight](https://apps.apple.com/app/testflight/id899247664) app first, then open the link on your iPhone or iPad. TestFlight keeps the app updated and needs no sideloading tools. Each TestFlight build is valid for 90 days; a newer build replaces it before then.
+
+### Sideloading
+
+Every [release](https://github.com/garfiec/Librechat-Mobile/releases) also carries an unsigned `switchboard-vYYYY.MM.P.ipa` for AltStore, SideStore, Sideloadly, or TrollStore. See [docs/RELEASING.md](docs/RELEASING.md#installing-the-ios-ipa) for the install routes and their trade-offs.
+
 ## Server Setup
 
 The app works with any standard LibreChat server. During onboarding, you'll enter your server URL (e.g., `https://chat.example.com` or `http://192.168.1.100:3080`).
