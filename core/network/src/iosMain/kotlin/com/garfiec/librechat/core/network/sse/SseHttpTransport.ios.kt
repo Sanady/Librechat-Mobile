@@ -1,6 +1,7 @@
 package com.garfiec.librechat.core.network.sse
 
 import co.touchlab.kermit.Logger
+import com.garfiec.librechat.core.common.identity.cleanServerUrl
 import com.garfiec.librechat.core.common.result.AccessGatewayException
 import com.garfiec.librechat.core.network.client.AccessGatewaySignal
 import com.garfiec.librechat.core.network.client.BearerResult
@@ -153,13 +154,13 @@ actual class SseHttpTransport(
         bearerToken: String?,
         customHeaders: Map<String, String>,
     ): Flow<ByteArray> = callbackFlow {
-        // Normalize base URL + stream path so there's exactly one slash between
-        // them. The base URL comes from the snapshot captured before this connection
-        // (already awaited past cold-start warm-up in SwitchGate.captureSnapshot), so
-        // a switch can't repoint it under a live stream. SseClient passes the stream
-        // path without a leading slash, matching how ChatRepositoryImpl builds it
-        // ("api/agents/chat/stream/$streamId").
-        val baseUrl = snapshotBaseUrl.trimEnd('/')
+        // This URL is built by hand, so it joins onto the cleaned base like every other hand-built
+        // join (Android's Ktor merge resolves the same GET itself). The base URL comes from the
+        // snapshot captured before this connection (already awaited past cold-start warm-up in
+        // SwitchGate.captureSnapshot), so a switch can't repoint it under a live stream.
+        // SseClient passes the stream path without a leading slash, matching how
+        // ChatRepositoryImpl builds it ("api/agents/chat/stream/$streamId").
+        val baseUrl = cleanServerUrl(snapshotBaseUrl)
         val normalizedPath = streamPath.trimStart('/')
         val queryString = if (resume) "?resume=true" else ""
         val fullUrl = "$baseUrl/$normalizedPath$queryString"
@@ -186,7 +187,7 @@ actual class SseHttpTransport(
             return@callbackFlow
         }
         val port = (url.port?.intValue ?: DEFAULT_HTTPS_PORT).toUShort()
-        val requestPath = buildRequestPath(url)
+        val requestPath = requestTarget(fullUrl)
 
         val endpoint = nw_endpoint_create_host(host, port.toString())
         // Default TLS+TCP parameters for NWConnection must come from a C shim.
@@ -375,11 +376,15 @@ actual class SseHttpTransport(
         }
     }
 
-    private fun buildRequestPath(url: NSURL): String {
-        val path = url.path ?: "/"
-        val query = url.query
-        val effectivePath = if (path.isEmpty()) "/" else path
-        return if (query.isNullOrEmpty()) effectivePath else "$effectivePath?$query"
+    /**
+     * The request-target, cut from the URL string as built rather than read back off `NSURL`, whose
+     * `path` percent-decodes: a deployment root with an escaped segment (`/my%20chat`) would
+     * otherwise go out as a raw space and break the request line. Keeps the query.
+     */
+    private fun requestTarget(fullUrl: String): String {
+        val afterScheme = fullUrl.substringAfter("://")
+        val pathStart = afterScheme.indexOf('/')
+        return if (pathStart < 0) "/" else afterScheme.substring(pathStart)
     }
 
     private fun buildHttpRequest(
