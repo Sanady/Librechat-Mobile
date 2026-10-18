@@ -281,31 +281,30 @@ private fun CompactAskLayout(
                 .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 8.dp)
                 .animateContentSize(),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = active.question,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = if (state.collapsed) 1 else Int.MAX_VALUE,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(max = bodyMaxHeight * HEADER_TO_BODY_HEIGHT_RATIO)
-                        .verticalScroll(questionScroll)
-                        .padding(vertical = 12.dp),
-                )
-                if (state.questions.size > 1) {
-                    PausePanelPager(
-                        index = state.activeIndex,
-                        count = state.questions.size,
-                        done = state.questions.map { state.isAnswered(it.id) },
-                        enabled = !state.collapsed,
-                        onSelect = actions.onSelect,
-                        previousLabel = stringResource(Res.string.cd_previous_ask_user_question),
-                        nextLabel = stringResource(Res.string.cd_next_ask_user_question),
-                    )
-                }
-                CollapseToggle(collapsed = state.collapsed, onCollapsedChange = actions.onCollapsedChange)
-            }
+            PausePanelCompactHeader(
+                title = active.question,
+                collapsed = state.collapsed,
+                expandedTitleMaxLines = Int.MAX_VALUE,
+                titleModifier = Modifier
+                    .heightIn(max = bodyMaxHeight * HEADER_TO_BODY_HEIGHT_RATIO)
+                    .verticalScroll(questionScroll),
+                pager = if (state.questions.size > 1) {
+                    {
+                        PausePanelPager(
+                            index = state.activeIndex,
+                            count = state.questions.size,
+                            done = state.questions.map { state.isAnswered(it.id) },
+                            enabled = !state.collapsed,
+                            onSelect = actions.onSelect,
+                            previousLabel = stringResource(Res.string.cd_previous_ask_user_question),
+                            nextLabel = stringResource(Res.string.cd_next_ask_user_question),
+                        )
+                    }
+                } else {
+                    null
+                },
+                toggle = { CollapseToggle(collapsed = state.collapsed, onCollapsedChange = actions.onCollapsedChange) },
+            )
 
             if (state.collapsed) return@Column
 
@@ -471,6 +470,8 @@ private fun CompactFreeTextRow(state: AskPanelState, actions: AskPanelActions) {
                     ),
                     style = MaterialTheme.typography.bodyLarge,
                     color = colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

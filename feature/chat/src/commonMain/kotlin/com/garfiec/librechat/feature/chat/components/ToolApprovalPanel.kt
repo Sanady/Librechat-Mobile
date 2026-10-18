@@ -221,21 +221,28 @@ private fun CompactToolLayout(
                 .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 8.dp)
                 .animateContentSize(),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ToolNameTitle(name = active.name, collapsed = state.collapsed, modifier = Modifier.weight(1f))
-                if (state.isBatch) {
-                    PausePanelPager(
-                        index = state.activeIndex,
-                        count = state.calls.size,
-                        done = state.calls.map { state.isDecided(it.toolCallId) },
-                        enabled = !state.collapsed,
-                        onSelect = actions.onSelect,
-                        previousLabel = stringResource(Res.string.cd_previous_tool_call),
-                        nextLabel = stringResource(Res.string.cd_next_tool_call),
-                    )
-                }
-                CollapseToggle(collapsed = state.collapsed, onCollapsedChange = actions.onCollapsedChange)
-            }
+            PausePanelCompactHeader(
+                title = active.name.ifBlank { stringResource(Res.string.tool_approval_title) },
+                collapsed = state.collapsed,
+                expandedTitleMaxLines = TOOL_NAME_MAX_LINES,
+                leadingIcon = { ToolNameIcon(modifier = Modifier.padding(end = TOOL_NAME_ICON_GAP)) },
+                pager = if (state.isBatch) {
+                    {
+                        PausePanelPager(
+                            index = state.activeIndex,
+                            count = state.calls.size,
+                            done = state.calls.map { state.isDecided(it.toolCallId) },
+                            enabled = !state.collapsed,
+                            onSelect = actions.onSelect,
+                            previousLabel = stringResource(Res.string.cd_previous_tool_call),
+                            nextLabel = stringResource(Res.string.cd_next_tool_call),
+                        )
+                    }
+                } else {
+                    null
+                },
+                toggle = { CollapseToggle(collapsed = state.collapsed, onCollapsedChange = actions.onCollapsedChange) },
+            )
 
             if (state.collapsed) return@Column
 
@@ -412,16 +419,21 @@ private fun WideToolLayout(
 @Composable
 private fun ToolNameTitle(name: String, collapsed: Boolean, modifier: Modifier = Modifier) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(20.dp))
-        Spacer(modifier = Modifier.width(8.dp))
+        ToolNameIcon()
+        Spacer(modifier = Modifier.width(TOOL_NAME_ICON_GAP))
         Text(
             text = name.ifBlank { stringResource(Res.string.tool_approval_title) },
             style = MaterialTheme.typography.titleSmall,
-            maxLines = if (collapsed) 1 else 2,
+            maxLines = if (collapsed) 1 else TOOL_NAME_MAX_LINES,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(vertical = 12.dp),
         )
     }
+}
+
+@Composable
+private fun ToolNameIcon(modifier: Modifier = Modifier) {
+    Icon(Icons.Default.Shield, contentDescription = null, modifier = modifier.size(TOOL_NAME_ICON_SIZE))
 }
 
 /**
@@ -656,4 +668,7 @@ private fun String.decisionLabel(): StringResource = when (this) {
 /** Narrower than the default padding so all four decisions fit one row at phone width. */
 private val DECISION_BUTTON_PADDING = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
 private const val BODY_HEIGHT_FRACTION = 0.3f
+private val TOOL_NAME_ICON_SIZE = 20.dp
+private val TOOL_NAME_ICON_GAP = 8.dp
+private const val TOOL_NAME_MAX_LINES = 2
 private val FALLBACK_BODY_MAX_HEIGHT = 240.dp
