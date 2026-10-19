@@ -1,7 +1,9 @@
 package com.garfiec.librechat.core.data.repository
 
+import com.garfiec.librechat.core.common.result.ApiException
 import com.garfiec.librechat.core.common.result.Result
 import com.garfiec.librechat.core.model.Attachment
+import com.garfiec.librechat.core.model.response.FileDownloadURLResponse
 import com.garfiec.librechat.core.network.api.FilesApi
 import com.garfiec.librechat.core.network.client.ServerUrlProvider
 import com.garfiec.librechat.core.network.client.ServerUrlReadyPlugin
@@ -20,6 +22,7 @@ import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Test
+import java.io.IOException
 
 /** Which route a generated file downloads from, decided by the shape of its filepath. */
 class FileRepositoryDownloadAttachmentTest {
@@ -74,7 +77,7 @@ class FileRepositoryDownloadAttachmentTest {
 
     @Test
     fun `a stored file downloads by its id`() = runTest {
-        coEvery { filesApi.getDownloadUrl("u1", "f1") } throws IllegalStateException("501")
+        coEvery { filesApi.getDownloadUrl("u1", "f1") } throws ApiException(501, "Not Implemented")
         coEvery { filesApi.downloadFile("u1", "f1") } returns bytes
 
         val result = repository.downloadAttachment(
@@ -84,6 +87,61 @@ class FileRepositoryDownloadAttachmentTest {
 
         assertThat((result as Result.Success).data).isEqualTo(bytes)
         coVerify(exactly = 0) { filesApi.downloadFromUrl(any()) }
+    }
+
+    // ─── download-url support latch ─────────────────────────────────
+
+    @Test
+    fun `a 501 from download-url sends later downloads straight to the proxy`() = runTest {
+        coEvery { filesApi.getDownloadUrl("u1", any()) } throws ApiException(501, "Not Implemented")
+        coEvery { filesApi.downloadFile("u1", any()) } returns bytes
+
+        assertThat((repository.downloadFile("u1", "f1") as Result.Success).data).isEqualTo(bytes)
+        assertThat((repository.downloadFile("u1", "f2") as Result.Success).data).isEqualTo(bytes)
+
+        coVerify(exactly = 1) { filesApi.getDownloadUrl(any(), any()) }
+        coVerify(exactly = 2) { filesApi.downloadFile("u1", any()) }
+    }
+
+    @Test
+    fun `clearing the repository asks download-url again`() = runTest {
+        coEvery { filesApi.getDownloadUrl("u1", any()) } throws ApiException(501, "Not Implemented")
+        coEvery { filesApi.downloadFile("u1", any()) } returns bytes
+
+        repository.downloadFile("u1", "f1")
+        repository.clear()
+        repository.downloadFile("u1", "f2")
+
+        coVerify(exactly = 2) { filesApi.getDownloadUrl(any(), any()) }
+    }
+
+    @Test
+    fun `a per-file 400 or a missing file's 404 does not latch`() = runTest {
+        coEvery { filesApi.getDownloadUrl("u1", "f1") } throws ApiException(400, "no model")
+        coEvery { filesApi.getDownloadUrl("u1", "f2") } throws ApiException(404, "File not found")
+        coEvery { filesApi.getDownloadUrl("u1", "f3") } returns FileDownloadURLResponse(url = "https://cdn.example/f3")
+        coEvery { filesApi.downloadFile("u1", any()) } returns bytes
+        coEvery { filesApi.downloadFromUrl("https://cdn.example/f3") } returns bytes
+
+        repository.downloadFile("u1", "f1")
+        repository.downloadFile("u1", "f2")
+        repository.downloadFile("u1", "f3")
+
+        coVerify(exactly = 1) { filesApi.getDownloadUrl("u1", "f3") }
+        coVerify(exactly = 1) { filesApi.downloadFromUrl("https://cdn.example/f3") }
+        coVerify(exactly = 0) { filesApi.downloadFile("u1", "f3") }
+    }
+
+    @Test
+    fun `a failed CDN fetch falls back without latching`() = runTest {
+        coEvery { filesApi.getDownloadUrl("u1", any()) } returns FileDownloadURLResponse(url = "https://cdn.example/x")
+        coEvery { filesApi.downloadFromUrl("https://cdn.example/x") } throws IOException("reset")
+        coEvery { filesApi.downloadFile("u1", any()) } returns bytes
+
+        assertThat((repository.downloadFile("u1", "f1") as Result.Success).data).isEqualTo(bytes)
+        repository.downloadFile("u1", "f2")
+
+        coVerify(exactly = 2) { filesApi.getDownloadUrl(any(), any()) }
     }
 
     @Test

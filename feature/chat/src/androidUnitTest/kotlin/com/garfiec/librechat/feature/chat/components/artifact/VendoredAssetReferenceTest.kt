@@ -34,6 +34,32 @@ class VendoredAssetReferenceTest {
         put("html-full", ArtifactWebContent.buildHtml("<!DOCTYPE html><html><head></head><body/></html>", "text/html", false))
         put("svg", ArtifactWebContent.buildHtml("<svg/>", "image/svg+xml", false))
         put("plain", ArtifactWebContent.buildHtml("hello", "text/plain", false))
+        // Server-built office previews, after the client points their CDN renderers at the
+        // vendored copies. The server's own shape: a CSP naming jsDelivr, renderer tags with SRI.
+        val officeHead = "<!DOCTYPE html><html><head>" +
+            "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; " +
+            "script-src https://cdn.jsdelivr.net 'unsafe-inline'; connect-src 'self' https://cdn.jsdelivr.net\">"
+        val officeTail = "</head><body><div id=\"lc-fallback\" hidden></div></body></html>"
+        val cdn = "https://cdn.jsdelivr.net/npm"
+        put(
+            "office-docx",
+            ArtifactWebContent.buildOfficePreviewHtml(
+                officeHead +
+                    "<script src=\"$cdn/jszip@3.10.1/dist/jszip.min.js\" crossorigin=\"anonymous\"></script>" +
+                    "<script src=\"$cdn/docx-preview@0.3.7/dist/docx-preview.min.js\"></script>" +
+                    officeTail,
+                "html",
+                isDarkTheme = false,
+            ),
+        )
+        put(
+            "office-pptx",
+            ArtifactWebContent.buildOfficePreviewHtml(
+                officeHead + "<script src=\"$cdn/pptx-preview@1.0.7/dist/pptx-preview.umd.js\"></script>" + officeTail,
+                "html",
+                isDarkTheme = false,
+            ),
+        )
     }
 
     /** Every `src="…"` / `href="…"` in a document, excluding data and blob URIs. */

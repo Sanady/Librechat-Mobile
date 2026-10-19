@@ -779,10 +779,7 @@ fun MessageList(
                     ) { toolCall ->
                         StreamingToolCallCard(
                             toolCall = toolCall,
-                            modifier = Modifier.padding(
-                                horizontal = 16.dp,
-                                vertical = 4.dp,
-                            ),
+                            modifier = Modifier.streamingContentColumnPadding(chatLayoutStyle, showAvatars, showBubbles),
                             baseUrl = baseUrl,
                             streamingAttachments = streamingWorkspace.inline,
                             showImageDescriptions = showImageDescriptions,
@@ -797,7 +794,7 @@ fun MessageList(
                             changes = streamingWorkspace.changes,
                             baseUrl = baseUrl,
                             stateKey = "streaming",
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            modifier = Modifier.streamingContentColumnPadding(chatLayoutStyle, showAvatars, showBubbles),
                         )
                     }
                 }
@@ -815,7 +812,7 @@ fun MessageList(
                             attachments = streamingWorkspace.inline,
                             renderedToolCallIds = streamingCallIds,
                             baseUrl = baseUrl,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            modifier = Modifier.streamingContentColumnPadding(chatLayoutStyle, showAvatars, showBubbles),
                             isDarkTheme = isSurfaceDark(),
                         )
                     }
@@ -829,7 +826,7 @@ fun MessageList(
                     item(key = "streaming_memory_artifacts") {
                         MemoryArtifactsSection(
                             artifacts = orphanMemory,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            modifier = Modifier.streamingContentColumnPadding(chatLayoutStyle, showAvatars, showBubbles),
                             stateKey = "streaming",
                         )
                     }

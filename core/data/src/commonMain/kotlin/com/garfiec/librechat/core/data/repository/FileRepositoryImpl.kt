@@ -231,17 +231,31 @@ class FileRepositoryImpl(
      * URL attempt's failures are swallowed (they're expected on non-CDN servers).
      */
     override suspend fun downloadFile(userId: String, fileId: String): Result<ByteArray> {
-        // Not safeApiCall: it would log every one of these expected failures at error level.
-        val direct = apiCallCatching<Result<ByteArray>?>({
-            val urlResponse = filesApi.getDownloadUrl(userId, fileId)
-            Result.Success(filesApi.downloadFromUrl(urlResponse.url))
-        }) {
-            // Expected on local-storage / OpenAI-storage / non-CDN servers, or a
-            // transient CDN failure — fall through to the server-proxy download.
-            null
-        }
+        val direct = if (directDownloadUnsupported) null else directDownload(userId, fileId)
         return direct ?: safeApiCall { filesApi.downloadFile(userId, fileId) }
     }
+
+    /** The presigned-URL leg of [downloadFile]; null means "use the proxy". */
+    private suspend fun directDownload(userId: String, fileId: String): Result<ByteArray>? {
+        // Not safeApiCall: it would log every one of these expected failures at error level.
+        val url = apiCallCatching<String?>({ filesApi.getDownloadUrl(userId, fileId).url }) { e ->
+            if ((e as? ApiException)?.statusCode in DIRECT_DOWNLOAD_UNSUPPORTED_STATUSES) {
+                directDownloadUnsupported = true
+            }
+            null
+        } ?: return null
+        // A CDN failure says nothing about the route, so it falls back without latching.
+        return apiCallCatching<Result<ByteArray>?>({ Result.Success(filesApi.downloadFromUrl(url)) }) { null }
+    }
+
+    /**
+     * Set once `download-url` answers 501 (this server's storage has no direct-URL strategy, e.g.
+     * local) or 405, so later downloads on the same server go straight to the proxy instead of
+     * paying a round trip that cannot succeed. A 400 is per file (OpenAI storage without a model)
+     * and a 404 can be a missing file, so neither latches. In memory only; reset by [clear].
+     */
+    @Volatile
+    private var directDownloadUnsupported = false
 
     override suspend fun downloadAttachment(attachment: Attachment, userId: String?): Result<ByteArray> {
         val filepath = attachment.filepath
@@ -351,6 +365,7 @@ class FileRepositoryImpl(
 
     override fun clear() {
         usageHoldProbeVerdict = null
+        directDownloadUnsupported = false
     }
 
     private companion object {
@@ -358,5 +373,6 @@ class FileRepositoryImpl(
         const val POLL_MAX_ATTEMPTS = 30
         const val POLL_MAX_CONSECUTIVE_ERRORS = 5
         const val HTTP_NOT_FOUND = 404
+        val DIRECT_DOWNLOAD_UNSUPPORTED_STATUSES = setOf(501, 405)
     }
 }

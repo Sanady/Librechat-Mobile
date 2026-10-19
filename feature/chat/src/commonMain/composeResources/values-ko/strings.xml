@@ -316,10 +316,7 @@
     <!-- Message files -->
     <string name="file_fallback">파일</string>
     <string name="attachment_fallback">첨부 파일</string>
-    <string name="pdf_document">PDF 문서</string>
     <string name="pdf_load_failed">PDF를 불러오지 못했습니다</string>
-    <string name="cd_share_pdf">PDF 공유</string>
-    <string name="cd_open_pdf">PDF 열기</string>
     <string name="retry">다시 시도</string>
     <string name="messages_unavailable_title">메시지를 사용할 수 없음</string>
     <string name="messages_unavailable_body">이 대화를 불러올 수 없으며 이 기기에 저장된 오프라인 사본이 없습니다.</string>
@@ -678,6 +675,7 @@
     <string name="file_updated">편집됨</string>
     <string name="show_all_n">%1$d개 모두 보기</string>
     <string name="cd_download_file">%1$s 다운로드</string>
+    <string name="cd_open_file">%1$s 열기</string>
     <string name="preview_preparing">미리보기 준비 중…</string>
     <string name="preview_failed_download">미리보기를 사용할 수 없음 · 다운로드하여 보기</string>
     <plurals name="text_n_lines">

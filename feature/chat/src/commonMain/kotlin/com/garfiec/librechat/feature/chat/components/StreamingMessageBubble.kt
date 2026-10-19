@@ -291,3 +291,26 @@ private fun StreamingThinking(thinking: String, fontSizeMultiplier: Float, useKa
     )
     Spacer(modifier = Modifier.height(4.dp))
 }
+
+/**
+ * Padding for the live reply's sibling items (tool cards, workspace changes, office previews,
+ * memory) so they sit in the column its text uses, which is where the persisted message renders
+ * them: `MessageBubble`'s content column on both platforms (avatar column, plus the bubble's own
+ * padding when bubbles are on). Without it they land full width while streaming and shift inward
+ * when the reply settles.
+ */
+internal fun Modifier.streamingContentColumnPadding(
+    chatLayoutStyle: String,
+    showAvatars: Boolean,
+    showBubbles: Boolean,
+): Modifier {
+    val bubblePad = if (showBubbles) 12.dp else 0.dp
+    return if (chatLayoutStyle == ChatLayoutConstants.TWO_SIDED) {
+        val inner = if (showBubbles) 12.dp else 4.dp
+        val avatar = if (showAvatars) 28.dp + 6.dp else 0.dp
+        padding(start = 8.dp + avatar + inner, end = 8.dp + inner, top = 4.dp, bottom = 4.dp)
+    } else {
+        val avatar = if (showAvatars) 36.dp else 0.dp
+        padding(start = 16.dp + avatar + bubblePad, end = 16.dp + bubblePad, top = 4.dp, bottom = 4.dp)
+    }
+}

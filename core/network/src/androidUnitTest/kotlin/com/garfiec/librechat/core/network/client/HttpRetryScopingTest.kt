@@ -70,6 +70,60 @@ class HttpRetryScopingTest {
     }
 
     @Test
+    fun `does not retry a GET answered 501 Not Implemented`() = runTest {
+        var attempts = 0
+        val engine = MockEngine {
+            attempts++
+            respond("Not Implemented", HttpStatusCode.NotImplemented)
+        }
+        val client = countingClient(engine)
+
+        client.get("https://example.com/api/files/download-url/u1/f1")
+
+        assertThat(attempts).isEqualTo(1)
+    }
+
+    @Test
+    fun `does not retry a GET whose 501 or 4xx is thrown as an ApiException`() = runTest {
+        for (status in listOf(501, 400, 404, 405)) {
+            var attempts = 0
+            val engine = MockEngine {
+                attempts++
+                throw ApiException(statusCode = status, message = "HTTP $status")
+            }
+            val client = countingClient(engine)
+
+            runCatching { client.get("https://example.com/api/files/download-url/u1/f1") }
+
+            assertThat(attempts).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun `still retries a GET on 503 whether it arrives as a response or as an ApiException`() = runTest {
+        var responseAttempts = 0
+        val responding = countingClient(
+            MockEngine {
+                responseAttempts++
+                respond("busy", HttpStatusCode.ServiceUnavailable)
+            },
+        )
+        var thrownAttempts = 0
+        val throwing = countingClient(
+            MockEngine {
+                thrownAttempts++
+                throw ApiException(statusCode = 503, message = "busy")
+            },
+        )
+
+        responding.get("https://example.com/api/files/download-url/u1/f1")
+        runCatching { throwing.get("https://example.com/api/files/download-url/u1/f1") }
+
+        assertThat(responseAttempts).isEqualTo(SAFE_ATTEMPTS)
+        assertThat(thrownAttempts).isEqualTo(SAFE_ATTEMPTS)
+    }
+
+    @Test
     fun `does not retry a GET whose certificate is untrusted`() = runTest {
         var attempts = 0
         val engine = MockEngine {

@@ -15,13 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.FolderCopy
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -52,12 +48,9 @@ import com.garfiec.librechat.core.model.response.FilePreviewResponse
 import com.garfiec.librechat.core.ui.components.FileTypeTile
 import com.garfiec.librechat.feature.chat.components.artifact.Artifact
 import com.garfiec.librechat.feature.chat.components.artifact.ArtifactFileSource
-import com.garfiec.librechat.feature.chat.components.artifact.ArtifactType
 import com.garfiec.librechat.feature.chat.resources.Res
 import com.garfiec.librechat.feature.chat.resources.attachment_fallback
-import com.garfiec.librechat.feature.chat.resources.cd_open_pdf
 import com.garfiec.librechat.feature.chat.resources.files_count_summary
-import com.garfiec.librechat.feature.chat.resources.pdf_document
 import com.garfiec.librechat.feature.chat.resources.plus_n_more
 import com.garfiec.librechat.feature.chat.resources.state_collapsed
 import com.garfiec.librechat.feature.chat.resources.state_expanded
@@ -272,14 +265,15 @@ internal fun displayFilename(name: String): String = sandboxDisplayName(name)
  * server-extracted `attachment.text`; a blank/absent text can't be rendered, so it falls back. Code
  * files are wrapped in a fenced block so the markdown artifact renderer highlights them.
  *
- * Any other text opens as plain text — a `.log`, a `.csv`, a `Makefile` — where upstream shows
- * an inline box this client doesn't have. Not an office document's or a PDF's: their text is an
- * extraction for their own viewers, and an office one is HTML. Pure — unit-tested.
+ * Any other text opens as plain text — a `.log`, a `Makefile`, an office document the server did
+ * not mark `html` — where upstream shows an inline box this client doesn't have. Plain text renders
+ * escaped, so file text that contains markup stays text. Not a PDF's, nor an office document's
+ * with an HTML preview: those have their own viewers ([officePreviewMimeOf]). Pure — unit-tested.
  */
 internal fun attachmentToArtifact(attachment: Attachment): Artifact? {
     val text = attachment.text
     if (text.isNullOrBlank()) return null
-    if (ArtifactType.isOfficePreviewMime(attachment.type) || isPdf(attachment)) return null
+    if (officePreviewMimeOf(attachment) != null || isPdf(attachment)) return null
     val name = attachmentName(attachment) ?: return null
     val ext = name.substringAfterLast('.', "").lowercase()
 
@@ -300,7 +294,7 @@ internal fun attachmentToArtifact(attachment: Attachment): Artifact? {
             type = "image/svg+xml"; content = text; language = "svg"
         }
         ext in CODE_LANGUAGES -> {
-            type = "text/markdown"; content = "```$ext\n$text\n```"; language = ext
+            type = "text/markdown"; content = fencedCodeBlock(text, ext); language = ext
         }
         else -> {
             type = "text/plain"; content = text; language = null
@@ -367,12 +361,12 @@ internal fun ToolAttachmentBuckets(
                     }
                 }
 
-                is ToolAttachmentBucket.Pdfs -> bucket.items.forEach { item ->
-                    if (item.attachment.fileId == null) return@forEach
-                    PdfAttachmentCard(
-                        title = attachmentName(item.attachment)?.let { displayFilename(it) } ?: fallbackName,
-                        onClick = { actions.openToolFile(item.attachment) },
-                    )
+                // Chips like the files above; a tap opens the native PDF preview, not the sheet.
+                is ToolAttachmentBucket.Pdfs -> FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    bucket.items.forEach { item -> AttachmentDownloadChip(attachment = item.attachment, actions = actions) }
                 }
 
                 is ToolAttachmentBucket.Images -> bucket.items.forEach { item ->
@@ -394,64 +388,6 @@ internal fun ToolAttachmentBuckets(
     }
 }
 
-/** Cached per core/ui Compose perf rule 13 (don't allocate `RoundedCornerShape` per composition). */
-private val PDF_CARD_SHAPE = RoundedCornerShape(12.dp)
-
-/**
- * A card for a generated PDF, styled like [ArtifactButton] (icon + title + "PDF Document" subtitle
- * + open affordance). Tapping opens the native full-screen preview via [LocalOpenPdf] — the
- * download-on-open + rendering happen there, mirroring how the web client opens PDFs in a viewer
- * rather than forcing a download.
- */
-@Composable
-private fun PdfAttachmentCard(title: String, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = PDF_CARD_SHAPE,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-        ),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Default.Description,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(Res.string.pdf_document),
-                    style = MaterialTheme.typography.bodySmall,
-                    // Opaque theme role rather than copy(alpha=…) per core/ui Compose perf rule 15.
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                contentDescription = stringResource(Res.string.cd_open_pdf),
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
 /**
  * A file chip that opens the file on tap through [ToolFileActions.openToolFile], showing a
  * spinner while a download is in flight. An expired file is dimmed and a tap says why.
@@ -467,7 +403,7 @@ private fun AttachmentDownloadChip(attachment: Attachment, actions: ToolFileActi
         bytes = attachment.bytes,
         isLoading = isDownloading,
         expired = expired,
-        onClick = if (expired || (actions.canDownload(attachment) && !isDownloading)) {
+        onClick = if (actions.canOpen(attachment) && !isDownloading) {
             { actions.openToolFile(attachment) }
         } else {
             null

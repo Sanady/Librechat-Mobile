@@ -559,6 +559,29 @@ onto a major version nothing here was tested against. Neither broke a build or a
 `VendoredAssetReferenceTest` now pins both halves — no remote origin, and every referenced
 path exists in the manifest.
 
+### Office previews: we rewrite the server's document (deliberate divergence from web)
+
+The server builds DOCX/PPTX previews as complete HTML documents
+(`packages/api/src/files/documents/html.ts`) whose `<script src>` tags load renderers from
+`cdn.jsdelivr.net` and whose CSP allows that host. The web runs that document unchanged in a
+sandboxed iframe. **We don't**: before it reaches the WebView, `localizeOfficePreviewHtml`
+(`artifact/OfficePreviewLocalizer.kt`, applied in `buildOfficePreviewHtml`) points the exact
+upstream URLs in `VENDORED_OFFICE_RENDERERS` at the bundled copies (jszip, docx-preview),
+strips every other remote script, link and `@import`, and replaces the server's CSP with one
+naming no remote origin. So the page the user sees is not the page the server sent.
+
+When an office preview misbehaves, start here:
+- **"High-fidelity renderer unavailable" on a DOCX** = the server's pinned URL no longer
+  matches `VENDORED_OFFICE_RENDERERS` (an upstream bump), so the tag was stripped and the
+  document fell back to its mammoth HTML. `scripts/mirrors.json` watches `DOCX_PREVIEW_CDN` for
+  exactly this; repin through `/update-web-assets` and update the map in the same PR.
+- **PPTX always shows the slide-list fallback.** pptx-preview is not FOSS (its README forbids
+  republishing), so it is never bundled. That is not a bug to fix by loading it from the CDN.
+- **Something the server's renderer needs is blocked** (fonts, media, a new script) = our CSP,
+  not theirs, is in force. Compare `OFFICE_PREVIEW_CSP` with the server's before loosening it.
+- The document also passes through `buildEnhancedHtml`, which adds its own CSP and the Tailwind
+  reset on top of the server's styling — a layout difference from web can come from there.
+
 ## Media Players
 - `VideoContent` uses ExoPlayer (media3) on Android, AVPlayer on iOS — 16:9, released on dispose
 - `AudioContent` decodes base64 audio and plays it via ExoPlayer on Android, AVAudioPlayer on iOS

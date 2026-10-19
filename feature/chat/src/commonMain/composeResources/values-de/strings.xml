@@ -316,10 +316,7 @@
     <!-- Message files -->
     <string name="file_fallback">Datei</string>
     <string name="attachment_fallback">Anhang</string>
-    <string name="pdf_document">PDF-Dokument</string>
     <string name="pdf_load_failed">PDF konnte nicht geladen werden</string>
-    <string name="cd_share_pdf">PDF teilen</string>
-    <string name="cd_open_pdf">PDF öffnen</string>
     <string name="retry">Erneut versuchen</string>
     <string name="messages_unavailable_title">Nachrichten nicht verfügbar</string>
     <string name="messages_unavailable_body">Diese Unterhaltung konnte nicht geladen werden und auf diesem Gerät ist keine Offline-Kopie gespeichert.</string>
@@ -682,6 +679,7 @@
     <string name="file_updated">Bearbeitet</string>
     <string name="show_all_n">Alle %1$d anzeigen</string>
     <string name="cd_download_file">%1$s herunterladen</string>
+    <string name="cd_open_file">%1$s öffnen</string>
     <string name="preview_preparing">Vorschau wird vorbereitet…</string>
     <string name="preview_failed_download">Keine Vorschau · zum Ansehen herunterladen</string>
     <plurals name="text_n_lines">

@@ -1,6 +1,7 @@
 package com.garfiec.librechat.core.ui.media
 
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
@@ -8,7 +9,11 @@ import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
+import com.garfiec.librechat.core.ui.components.AdaptiveCircularProgressIndicator
 
 /**
  * The standard save/share toolbar for [ZoomableMediaPager], shared by every surface that hosts the
@@ -19,7 +24,8 @@ import androidx.compose.ui.graphics.Color
  * case the save button is omitted; [onOpenIn] is null unless the item's original file can be handed
  * to another app (a generated file, whose bytes the caller downloads). Content descriptions are
  * passed in (resolved once by the caller, above the pager) so paging between items doesn't
- * re-resolve string resources on every swipe.
+ * re-resolve string resources on every swipe. [busy] is the action whose download is in flight:
+ * its button shows a spinner and every button is held until it lands, as in [FileActionsSheet].
  *
  * No `modifier` param: this emits sibling buttons directly into the caller-owned [RowScope], so
  * there is no single root node to apply one to.
@@ -34,30 +40,32 @@ fun RowScope.MediaActionBar(
     shareContentDescription: String,
     onOpenIn: ((url: String) -> Unit)? = null,
     openInContentDescription: String = "",
+    busy: FileAction? = null,
 ) {
     if (onOpenIn != null) {
-        IconButton(onClick = { onOpenIn(item.url) }) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                contentDescription = openInContentDescription,
-                tint = Color.White,
-            )
+        MediaActionButton(Icons.AutoMirrored.Filled.OpenInNew, openInContentDescription, busy, FileAction.OPEN_IN) {
+            onOpenIn(item.url)
         }
     }
     if (onSave != null) {
-        IconButton(onClick = { onSave(item.url) }) {
-            Icon(
-                imageVector = Icons.Outlined.SaveAlt,
-                contentDescription = saveContentDescription,
-                tint = Color.White,
-            )
-        }
+        MediaActionButton(Icons.Outlined.SaveAlt, saveContentDescription, busy, FileAction.SAVE) { onSave(item.url) }
     }
-    IconButton(onClick = { onShare(item.url) }) {
-        Icon(
-            imageVector = Icons.Default.Share,
-            contentDescription = shareContentDescription,
-            tint = Color.White,
-        )
+    MediaActionButton(Icons.Default.Share, shareContentDescription, busy, FileAction.SHARE) { onShare(item.url) }
+}
+
+@Composable
+private fun MediaActionButton(
+    icon: ImageVector,
+    contentDescription: String,
+    busy: FileAction?,
+    action: FileAction,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick, enabled = busy == null) {
+        if (busy == action) {
+            AdaptiveCircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+        } else {
+            Icon(imageVector = icon, contentDescription = contentDescription, tint = Color.White)
+        }
     }
 }

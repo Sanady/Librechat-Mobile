@@ -164,6 +164,7 @@ fun ChatRoot(
                         shareContentDescription = shareDescription,
                         onOpenIn = { fileActions.run(source, FileAction.OPEN_IN) },
                         openInContentDescription = openInDescription,
+                        busy = fileActions.busyAction(source),
                     )
                 } else {
                     MediaActionBar(

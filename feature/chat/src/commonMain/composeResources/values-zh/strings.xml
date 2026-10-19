@@ -316,10 +316,7 @@
     <!-- Message files -->
     <string name="file_fallback">文件</string>
     <string name="attachment_fallback">附件</string>
-    <string name="pdf_document">PDF 文档</string>
     <string name="pdf_load_failed">无法加载 PDF</string>
-    <string name="cd_share_pdf">分享 PDF</string>
-    <string name="cd_open_pdf">打开 PDF</string>
     <string name="retry">重试</string>
     <string name="messages_unavailable_title">消息不可用</string>
     <string name="messages_unavailable_body">无法加载此对话，且此设备上没有保存离线副本。</string>
@@ -678,6 +675,7 @@
     <string name="file_updated">已编辑</string>
     <string name="show_all_n">显示全部 %1$d 个</string>
     <string name="cd_download_file">下载 %1$s</string>
+    <string name="cd_open_file">打开 %1$s</string>
     <string name="preview_preparing">正在准备预览…</string>
     <string name="preview_failed_download">无法预览 · 下载后查看</string>
     <plurals name="text_n_lines">

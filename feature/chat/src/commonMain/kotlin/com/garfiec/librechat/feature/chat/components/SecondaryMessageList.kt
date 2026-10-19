@@ -172,10 +172,7 @@ fun SecondaryMessageList(
                         ) { toolCall ->
                             StreamingToolCallCard(
                                 toolCall = toolCall,
-                                modifier = Modifier.padding(
-                                    horizontal = 16.dp,
-                                    vertical = 4.dp,
-                                ),
+                                modifier = Modifier.streamingContentColumnPadding(chatLayoutStyle, showAvatars, showBubbles),
                                 baseUrl = baseUrl,
                                 streamingAttachments = streamingWorkspace.inline,
                                 sandboxStarting = toolCall.id in sandboxStartingToolCallIds,
@@ -189,7 +186,7 @@ fun SecondaryMessageList(
                                 changes = streamingWorkspace.changes,
                                 baseUrl = baseUrl,
                                 stateKey = "secondary_streaming",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                modifier = Modifier.streamingContentColumnPadding(chatLayoutStyle, showAvatars, showBubbles),
                             )
                         }
                     }

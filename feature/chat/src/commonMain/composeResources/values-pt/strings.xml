@@ -316,10 +316,7 @@
     <!-- Message files -->
     <string name="file_fallback">Arquivo</string>
     <string name="attachment_fallback">Anexo</string>
-    <string name="pdf_document">Documento PDF</string>
     <string name="pdf_load_failed">Não foi possível carregar o PDF</string>
-    <string name="cd_share_pdf">Compartilhar PDF</string>
-    <string name="cd_open_pdf">Abrir PDF</string>
     <string name="retry">Tentar novamente</string>
     <string name="messages_unavailable_title">Mensagens indisponíveis</string>
     <string name="messages_unavailable_body">Não foi possível carregar esta conversa e não há cópia offline salva neste dispositivo.</string>
@@ -686,6 +683,7 @@
     <string name="file_updated">Editado</string>
     <string name="show_all_n">Mostrar todos os %1$d</string>
     <string name="cd_download_file">Baixar %1$s</string>
+    <string name="cd_open_file">Abrir %1$s</string>
     <string name="preview_preparing">Preparando a visualização…</string>
     <string name="preview_failed_download">Visualização indisponível · baixe para ver</string>
     <plurals name="text_n_lines">

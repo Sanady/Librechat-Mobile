@@ -119,6 +119,48 @@
       "failure_mode": "An extension upstream added renders as a download chip instead of an image the user can see. One removed sends a non-image down the image path, where a null resolved URL degrades it to a chip. Neither errors."
     },
     {
+      "id": "tool-artifact-office-extensions",
+      "upstream": {
+        "file": "client/src/utils/artifacts.ts",
+        "symbol": "EXTENSION_TO_TOOL_ARTIFACT_TYPE",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "feature/chat/src/commonMain/kotlin/com/garfiec/librechat/feature/chat/components/GeneratedFileTyping.kt",
+        "symbol": "OFFICE_BUCKET_BY_EXTENSION"
+      },
+      "why": "Which generated-file extensions route to an office HTML preview (docx, spreadsheet, presentation) once the server marks their text html. Only the office subset is mirrored; odt is left out because upstream keeps it on the plain-text path.",
+      "failure_mode": "An extension upstream starts previewing shows its HTML source as escaped plain text; one it stops previewing still renders the server's HTML. Neither errors."
+    },
+    {
+      "id": "tool-artifact-office-mimes",
+      "upstream": {
+        "file": "client/src/utils/artifacts.ts",
+        "symbol": "MIME_TO_TOOL_ARTIFACT_TYPE",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "feature/chat/src/commonMain/kotlin/com/garfiec/librechat/feature/chat/components/GeneratedFileTyping.kt",
+        "symbol": "OFFICE_BUCKET_BY_MIME"
+      },
+      "why": "The office subset of the MIME fallback for generated files, plus the excelMimeTypes pattern upstream also routes to the spreadsheet bucket (EXCEL_MIME).",
+      "failure_mode": "An office file with a MIME upstream added shows its HTML source as escaped plain text instead of its preview. No error."
+    },
+    {
+      "id": "tool-artifact-office-html-gate",
+      "upstream": {
+        "file": "client/src/utils/artifacts.ts",
+        "symbol": "detectArtifactTypeFromFile",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "feature/chat/src/commonMain/kotlin/com/garfiec/librechat/feature/chat/components/GeneratedFileTyping.kt",
+        "symbol": "officePreviewMimeOf"
+      },
+      "why": "The security gate: an office file's text is injected as HTML only when the server sets textFormat to html; otherwise it is shown as escaped plain text. Also the extension-before-MIME precedence.",
+      "failure_mode": "Upstream tightens or moves the gate and the client keeps injecting text the web now escapes, which is live markup in the WebView. Nothing fails."
+    },
+    {
       "id": "image-ext-regex-inline-media",
       "upstream": {
         "file": "packages/data-provider/src/file-config.ts",
@@ -1525,6 +1567,34 @@
       },
       "why": "The server stops extracting a preview after this long, and its lazy sweep then reports the record as failed. The client's poll budget (30 requests 2.5 s apart, about 75 s) is set to outlast it, so a stuck record ends as failed inside the loop.",
       "failure_mode": "The server's timeout grows past the client's budget: the poll ends while the server would still have answered, and the client shows the preview as unavailable though reopening the conversation later finds it ready."
+    },
+    {
+      "id": "office-preview-docx-cdn",
+      "upstream": {
+        "file": "packages/api/src/files/documents/html.ts",
+        "symbol": "DOCX_PREVIEW_CDN",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "feature/chat/src/commonMain/kotlin/com/garfiec/librechat/feature/chat/components/artifact/OfficePreviewLocalizer.kt",
+        "symbol": "VENDORED_OFFICE_RENDERERS (and the jszip / docx-preview pins in scripts/web-assets.json)"
+      },
+      "why": "The exact jsDelivr URLs the server's DOCX preview document loads its renderers from. The client rewrites only those exact URLs to its vendored copies, which are pinned to the same versions; any other URL is stripped so nothing is fetched at render time (F-Droid).",
+      "failure_mode": "Upstream bumps jszip or docx-preview: the new URL no longer matches, the tag is stripped, and every DOCX preview silently shows the simplified mammoth fallback. Repin both the registry and the map together via /update-web-assets."
+    },
+    {
+      "id": "office-preview-pptx-cdn",
+      "upstream": {
+        "file": "packages/api/src/files/documents/html.ts",
+        "symbol": "PPTX_PREVIEW_CDN",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "feature/chat/src/commonMain/kotlin/com/garfiec/librechat/feature/chat/components/artifact/OfficePreviewLocalizer.kt",
+        "symbol": "VENDORED_OFFICE_RENDERERS (pptx-preview deliberately absent)"
+      },
+      "why": "The server's PPTX renderer. pptx-preview is not vendored because it is not FOSS (no LICENSE in the tarball; its README forbids republishing or modifying the source), so the client strips it and PPTX documents show the server's slide-list fallback.",
+      "failure_mode": "Upstream switches PPTX to a different, FOSS renderer and mobile keeps showing the slide-list fallback without anyone noticing it could now render at full fidelity. Or a re-licensed pptx-preview goes unnoticed. Check the license of whatever this block now names."
     }
   ]
 }

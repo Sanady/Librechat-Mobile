@@ -305,13 +305,15 @@ object LibreChatHttpClient {
  */
 internal fun HttpRequestRetryConfig.configureRetryPolicy() {
     // A 5xx can arrive as a response (retryIf) or, once HttpResponseValidator throws, as an
-    // ApiException (retryOnExceptionIf) — so both predicates carry the same method gate.
+    // ApiException (retryOnExceptionIf) — so both predicates carry the same method and status gate,
+    // whichever path a non-2xx takes.
     retryIf(maxRetries = 2) { request, response ->
-        request.method.isRetrySafe() && response.status.value in 500..599
+        request.method.isRetrySafe() && response.status.value.isTransientServerError()
     }
     retryOnExceptionIf(maxRetries = 2) { request, cause ->
         request.method.isRetrySafe() &&
             cause !is kotlinx.coroutines.CancellationException &&
+            (cause !is ApiException || cause.statusCode.isTransientServerError()) &&
             // Deterministic until the user edits the credential, so retrying only delays the report.
             // Excluded here rather than by install order: this plugin is installed first and so runs
             // outermost, which it must stay for the transient failures it exists to absorb.
@@ -325,6 +327,14 @@ internal fun HttpRequestRetryConfig.configureRetryPolicy() {
 private val RETRY_SAFE_METHODS = setOf(HttpMethod.Get, HttpMethod.Head, HttpMethod.Options)
 
 private fun HttpMethod.isRetrySafe(): Boolean = this in RETRY_SAFE_METHODS
+
+/**
+ * A 5xx that a second attempt could plausibly fix. 501 (route has no strategy for this server, e.g.
+ * `download-url` on local storage) and 505 are verdicts about the server, not momentary failures.
+ */
+private fun Int.isTransientServerError(): Boolean =
+    this in 500..599 && this != HttpStatusCode.NotImplemented.value &&
+        this != HttpStatusCode.VersionNotSupported.value
 
 /**
  * Applies the browser [User-Agent][LibreChatHttpClient.BROWSER_USER_AGENT] that the stock LibreChat

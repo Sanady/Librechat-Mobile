@@ -154,18 +154,20 @@ private fun FileActionRow(icon: ImageVector, label: String, busy: Boolean, enabl
 
 /**
  * An overflow button whose menu holds the three [FileAction]s, for a viewer's top bar where three
- * more icons would not fit. [busy] swaps the icon for a spinner and holds the menu.
+ * more icons would not fit. [busy] swaps the icon for a spinner and holds the menu; [enabled] false
+ * holds it with the icon kept, for a viewer whose bytes have not arrived.
  */
 @Composable
 fun FileActionsMenu(
     onAction: (FileAction) -> Unit,
     modifier: Modifier = Modifier,
     busy: Boolean = false,
+    enabled: Boolean = true,
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = modifier) {
-        IconButton(onClick = { expanded = true }, enabled = !busy) {
+        IconButton(onClick = { expanded = true }, enabled = enabled && !busy) {
             if (busy) {
                 AdaptiveCircularProgressIndicator(modifier = Modifier.size(20.dp), color = tint, strokeWidth = 2.dp)
             } else {

@@ -316,10 +316,7 @@
     <!-- Message files -->
     <string name="file_fallback">ファイル</string>
     <string name="attachment_fallback">添付ファイル</string>
-    <string name="pdf_document">PDF ドキュメント</string>
     <string name="pdf_load_failed">PDF を読み込めませんでした</string>
-    <string name="cd_share_pdf">PDF を共有</string>
-    <string name="cd_open_pdf">PDF を開く</string>
     <string name="retry">再試行</string>
     <string name="messages_unavailable_title">メッセージを利用できません</string>
     <string name="messages_unavailable_body">この会話を読み込めず、このデバイスにはオフライン用のコピーも保存されていません。</string>
@@ -678,6 +675,7 @@
     <string name="file_updated">編集済み</string>
     <string name="show_all_n">%1$d 件をすべて表示</string>
     <string name="cd_download_file">%1$s をダウンロード</string>
+    <string name="cd_open_file">%1$s を開く</string>
     <string name="preview_preparing">プレビューを準備中…</string>
     <string name="preview_failed_download">プレビューを表示できません · ダウンロードして表示</string>
     <plurals name="text_n_lines">

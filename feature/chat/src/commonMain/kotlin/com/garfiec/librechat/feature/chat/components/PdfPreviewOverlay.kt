@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,7 +38,6 @@ import com.garfiec.librechat.core.ui.media.rememberSaveFile
 import com.garfiec.librechat.core.ui.media.rememberShareFile
 import com.garfiec.librechat.feature.chat.resources.Res
 import com.garfiec.librechat.feature.chat.resources.cd_close
-import com.garfiec.librechat.feature.chat.resources.cd_share_pdf
 import com.garfiec.librechat.feature.chat.resources.pdf_load_failed
 import com.garfiec.librechat.feature.chat.resources.retry
 import org.jetbrains.compose.resources.stringResource
@@ -66,7 +64,7 @@ private const val PDF_MIME = "application/pdf"
 /**
  * Full-screen PDF preview rendered at the chat screen root (by [ChatRoot]). Downloads the file's
  * bytes via [onDownload], checks they actually look like a PDF, then hands them to the platform-native
- * [PdfViewer]. A slim top bar carries close + share; system back dismisses on Android, and the
+ * [PdfViewer]. A slim top bar carries close + file actions; system back dismisses on Android, and the
  * explicit close covers iOS (which has no system back). Mirrors the media-viewer overlay pattern.
  *
  * Share stays available whenever bytes were downloaded — even if they aren't previewable or the
@@ -131,25 +129,17 @@ internal fun PdfPreviewOverlay(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                if (shareBytes != null) {
-                    FileActionsMenu(
-                        onAction = { action ->
-                            when (action) {
-                                FileAction.OPEN_IN -> openFileIn(shareBytes, filename, PDF_MIME)
-                                FileAction.SAVE -> saveFile(shareBytes, filename, PDF_MIME)
-                                FileAction.SHARE -> shareFile(shareBytes, filename, PDF_MIME)
-                            }
-                        },
-                    )
-                } else {
-                    IconButton(onClick = {}, enabled = false) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = stringResource(Res.string.cd_share_pdf),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+                FileActionsMenu(
+                    enabled = shareBytes != null,
+                    onAction = { action ->
+                        val bytes = shareBytes ?: return@FileActionsMenu
+                        when (action) {
+                            FileAction.OPEN_IN -> openFileIn(bytes, filename, PDF_MIME)
+                            FileAction.SAVE -> saveFile(bytes, filename, PDF_MIME)
+                            FileAction.SHARE -> shareFile(bytes, filename, PDF_MIME)
+                        }
+                    },
+                )
             }
 
             Box(

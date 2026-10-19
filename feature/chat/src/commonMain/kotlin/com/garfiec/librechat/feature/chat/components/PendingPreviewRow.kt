@@ -124,13 +124,19 @@ internal fun PendingPreviewRow(
     )
 }
 
-/** "Plain Text · 5 lines" for a plain-text file; every other type keeps its type label. */
+/**
+ * "Plain Text · 5 lines" for a plain-text file, "Python · 40 lines" for a code file; every other
+ * type keeps its type label. Rendered documents (HTML, markdown, office previews) get no count:
+ * theirs would be of the source, not of what the card opens on.
+ */
 @Composable
 private fun readySubtitle(artifact: Artifact, attachment: Attachment): String? {
-    if (artifact.type != "text/plain") return null
-    // Counted on the file's own text: [Artifact.content] is the same here, but a code file's is fenced.
+    val label = codeLanguageLabel(artifact)
+        ?: artifactTypeLabel(artifact.type).takeIf { artifact.type == "text/plain" }
+        ?: return null
+    // Counted on the file's own text: a code file's [Artifact.content] is fenced.
     val lines = attachment.text.orEmpty().trimEnd('\n').count { it == '\n' } + 1
-    return "${artifactTypeLabel(artifact.type)} · ${pluralStringResource(Res.plurals.text_n_lines, lines, lines)}"
+    return "$label · ${pluralStringResource(Res.plurals.text_n_lines, lines, lines)}"
 }
 
 @Composable
@@ -236,9 +242,8 @@ private fun PreviewRowCard(
                 )
                 val subtitle = when (phase) {
                     PreviewPhase.PENDING -> stringResource(Res.string.preview_preparing)
-                    // The server's reason, when it gave one, ahead of the generic hint.
-                    PreviewPhase.FAILED -> attachment.previewError?.takeIf { it.isNotBlank() }
-                        ?: stringResource(Res.string.preview_failed_download)
+                    // Never the attachment's previewError: it's a server code ("parser-error"), not copy.
+                    PreviewPhase.FAILED -> stringResource(Res.string.preview_failed_download)
                     PreviewPhase.READY -> readySubtitle ?: artifactTypeLabel(artifact?.type.orEmpty())
                 }
                 AnimatedContent(targetState = subtitle, transitionSpec = crossfade(reduceMotion), label = "previewRowSubtitle") {

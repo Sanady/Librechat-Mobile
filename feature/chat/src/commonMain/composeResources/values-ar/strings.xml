@@ -316,10 +316,7 @@
     <!-- Message files -->
     <string name="file_fallback">ملف</string>
     <string name="attachment_fallback">مرفق</string>
-    <string name="pdf_document">مستند PDF</string>
     <string name="pdf_load_failed">تعذّر تحميل ملف PDF</string>
-    <string name="cd_share_pdf">مشاركة PDF</string>
-    <string name="cd_open_pdf">فتح PDF</string>
     <string name="retry">إعادة المحاولة</string>
     <string name="messages_unavailable_title">الرسائل غير متاحة</string>
     <string name="messages_unavailable_body">تعذّر تحميل هذه المحادثة ولا توجد نسخة محفوظة للاستخدام دون اتصال على هذا الجهاز.</string>
@@ -698,6 +695,7 @@
     <string name="file_updated">معدّل</string>
     <string name="show_all_n">عرض الكل (%1$d)</string>
     <string name="cd_download_file">تنزيل %1$s</string>
+    <string name="cd_open_file">فتح %1$s</string>
     <string name="preview_preparing">جارٍ تحضير المعاينة…</string>
     <string name="preview_failed_download">المعاينة غير متاحة · نزّل الملف لعرضه</string>
     <plurals name="text_n_lines">

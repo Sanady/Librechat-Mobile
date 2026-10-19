@@ -44,11 +44,13 @@ object ArtifactWebContent {
             // WebView+mermaid runtime so it keeps mermaid's default htmlLabels=true for
             // label fidelity (bold/italic, <br/>, nested spans).
             ArtifactType.MERMAID -> MermaidWebContent.buildHtml(content, isDarkTheme, inline, htmlLabels = !inline)
-            ArtifactType.MARKDOWN, ArtifactType.PLAIN -> MarkdownWebContent.buildHtml(content, isDarkTheme, inline)
+            ArtifactType.MARKDOWN -> MarkdownWebContent.buildHtml(content, isDarkTheme, inline)
+            // Escaped, never through marked: marked hands raw HTML in the text straight to
+            // innerHTML, so a file's or a reply's "plain text" would render as live markup.
+            ArtifactType.PLAIN, ArtifactType.CODE -> buildPlainHtml(content, bgColor, fgColor, inline)
             ArtifactType.REACT -> buildReactHtml(content, bgColor, fgColor)
             ArtifactType.SVG -> buildSvgHtml(content, bgColor, inline)
             ArtifactType.HTML -> buildEnhancedHtml(content, bgColor, fgColor)
-            ArtifactType.CODE -> buildPlainHtml(content, bgColor, fgColor, inline)
         }
     }
 
@@ -61,6 +63,9 @@ object ArtifactWebContent {
      * the content is plain text and is rendered through the escaping monospace
      * path — it is NEVER injected as HTML. Upstream's `TFile.textFormat` doc
      * explicitly warns against injecting the `text` format as HTML.
+     *
+     * The HTML is passed through [localizeOfficePreviewHtml] first: the server's document loads
+     * its renderers from a CDN, which F-Droid forbids, so they are pointed at vendored copies.
      */
     fun buildOfficePreviewHtml(
         text: String,
@@ -71,7 +76,7 @@ object ArtifactWebContent {
         val bgColor = if (isDarkTheme) "#1C1B1F" else "#FFFBFE"
         val fgColor = if (isDarkTheme) "#E6E1E5" else "#1C1B1F"
         return if (textFormat == TextFormat.HTML) {
-            buildEnhancedHtml(text, bgColor, fgColor)
+            buildEnhancedHtml(localizeOfficePreviewHtml(text), bgColor, fgColor)
         } else {
             buildPlainHtml(text, bgColor, fgColor, inline)
         }

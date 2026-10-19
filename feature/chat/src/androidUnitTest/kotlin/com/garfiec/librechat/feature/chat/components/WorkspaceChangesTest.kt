@@ -62,6 +62,20 @@ class WorkspaceChangesTest {
     }
 
     @Test
+    fun `a file created and then edited this turn is still new`() {
+        val created = change("new", "out/report.md", filepath = "/uploads/v1", operation = "created")
+        val edited = change("new", "out/report.md", filepath = "/uploads/v2", operation = "updated")
+        val preexisting = change("old", "notes.txt", operation = "updated")
+        val reupdated = change("old", "notes.txt", filepath = "/uploads/old2", operation = "updated")
+
+        val split = partitionWorkspaceChanges(listOf(created, preexisting, edited, reupdated))
+
+        assertThat(split.changes.map { it.filepath }).containsExactly("/uploads/v2", "/uploads/old2").inOrder()
+        assertThat(split.changes.map(::workspaceOperation))
+            .containsExactly(WorkspaceOperation.CREATED, WorkspaceOperation.UPDATED).inOrder()
+    }
+
+    @Test
     fun `records without a fileId dedupe by agent and path`() {
         val first = change(null, "out/a.csv", agentId = "agent_1", filepath = "/api/files/code/download/s/1")
         val rewrite = change(null, "out/a.csv", agentId = "agent_1", filepath = "/api/files/code/download/s/2")

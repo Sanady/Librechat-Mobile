@@ -79,7 +79,8 @@ internal data class WorkspaceChangesSplit(val inline: List<Attachment>, val chan
  * Upstream `partitionWorkspaceChanges`. A change is a file a stateful session authored that can be
  * fetched (`workspaceChange.profile == "stateful"` and a `filepath`); everything else stays inline.
  * Changes dedupe by `fileId`, else by agent and path, and the last record wins and moves to the end:
- * a file rewritten twice in one turn is listed once, where its final write put it.
+ * a file rewritten twice in one turn is listed once, where its final write put it. The earliest
+ * record decides the operation, though: a file created and then edited this turn is still new.
  *
  * Returns [attachments] itself as `inline` when there are no changes, so keys built on it stay equal.
  *
@@ -98,8 +99,12 @@ internal fun partitionWorkspaceChanges(attachments: List<Attachment>?): Workspac
             continue
         }
         val key = workspaceChangeKey(attachment)
-        byFile.remove(key)
-        byFile[key] = attachment
+        val earlier = byFile.remove(key)
+        byFile[key] = if (earlier?.workspaceChange?.operation == CREATED_OPERATION) {
+            attachment.copy(workspaceChange = attachment.workspaceChange?.copy(operation = CREATED_OPERATION))
+        } else {
+            attachment
+        }
     }
     return WorkspaceChangesSplit(inline, byFile.values.toList())
 }
@@ -137,7 +142,7 @@ internal enum class WorkspaceOperation { CREATED, UPDATED }
 
 internal fun workspaceOperation(attachment: Attachment): WorkspaceOperation? =
     when (attachment.workspaceChange?.operation) {
-        "created" -> WorkspaceOperation.CREATED
+        CREATED_OPERATION -> WorkspaceOperation.CREATED
         "updated" -> WorkspaceOperation.UPDATED
         else -> null
     }
@@ -419,6 +424,7 @@ private fun WorkspaceChangesSheetContent(
 /** Upstream shows them all; past this many a reply's tail would be mostly file rows. */
 private const val INLINE_ROW_LIMIT = 5
 private const val STATEFUL_PROFILE = "stateful"
+private const val CREATED_OPERATION = "created"
 private val ListShape = RoundedCornerShape(8.dp)
 private val HeaderShape = RoundedCornerShape(999.dp)
 private val BadgeShape = RoundedCornerShape(999.dp)

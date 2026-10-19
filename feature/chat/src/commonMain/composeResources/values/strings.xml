@@ -323,10 +323,7 @@
 
     <!-- Tool-call generated-file attachments -->
     <string name="attachment_fallback">Attachment</string>
-    <string name="pdf_document">PDF Document</string>
     <string name="pdf_load_failed">Couldn't load PDF</string>
-    <string name="cd_share_pdf">Share PDF</string>
-    <string name="cd_open_pdf">Open PDF</string>
     <string name="retry">Retry</string>
 
     <!-- Messages unavailable (fetch failed, nothing cached) -->
@@ -714,6 +711,7 @@
     <string name="show_all_n">Show all %1$d</string>
     <!-- Accessibility label of a file's download button. %1$s is the file name -->
     <string name="cd_download_file">Download %1$s</string>
+    <string name="cd_open_file">Open %1$s</string>
     <!-- A generated file's row while its preview renders, and when it never did. -->
     <string name="preview_preparing">Preparing preview…</string>
     <string name="preview_failed_download">Preview unavailable · download to view</string>

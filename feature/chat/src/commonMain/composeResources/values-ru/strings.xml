@@ -316,10 +316,7 @@
     <!-- Message files -->
     <string name="file_fallback">Файл</string>
     <string name="attachment_fallback">Вложение</string>
-    <string name="pdf_document">PDF-документ</string>
     <string name="pdf_load_failed">Не удалось загрузить PDF</string>
-    <string name="cd_share_pdf">Поделиться PDF</string>
-    <string name="cd_open_pdf">Открыть PDF</string>
     <string name="retry">Повторить</string>
     <string name="messages_unavailable_title">Сообщения недоступны</string>
     <string name="messages_unavailable_body">Не удалось загрузить эту беседу, а офлайн-копия на этом устройстве не сохранена.</string>
@@ -690,6 +687,7 @@
     <string name="file_updated">Изменён</string>
     <string name="show_all_n">Показать все (%1$d)</string>
     <string name="cd_download_file">Скачать %1$s</string>
+    <string name="cd_open_file">Открыть %1$s</string>
     <string name="preview_preparing">Подготовка предпросмотра…</string>
     <string name="preview_failed_download">Предпросмотр недоступен · скачайте, чтобы открыть</string>
     <plurals name="text_n_lines">
