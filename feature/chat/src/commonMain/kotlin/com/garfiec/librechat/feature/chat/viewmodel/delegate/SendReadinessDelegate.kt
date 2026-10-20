@@ -1,6 +1,7 @@
 package com.garfiec.librechat.feature.chat.viewmodel.delegate
 
 import com.garfiec.librechat.core.common.EndpointConstants
+import com.garfiec.librechat.feature.chat.util.requiresSpec
 import com.garfiec.librechat.feature.chat.viewmodel.ChatUiState
 import com.garfiec.librechat.feature.chat.viewmodel.SendBlockReason
 import com.garfiec.librechat.feature.chat.viewmodel.SendReadinessHandle
@@ -70,9 +71,8 @@ class SendReadinessDelegate(
      * instantaneous instead of waiting out the readiness timeout.
      */
     private fun preflightSendBlockReason(state: ChatUiState): SendBlockReason? {
-        if (state.selection.modelSpecs?.enforce == true && state.selectedSpec.isNullOrBlank() &&
-            state.selectedEndpoint !in state.selection.modelSpecs.addedEndpoints
-        ) {
+        // The server rejects a send naming no spec, `addedEndpoints` or not.
+        if (state.selection.modelSpecs.requiresSpec && state.selectedSpec.isNullOrBlank()) {
             return SendBlockReason.SelectModel
         }
         if (state.selectedModel == null) {

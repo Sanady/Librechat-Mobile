@@ -74,13 +74,21 @@ class ComparisonModeDelegate(
         }
     }
 
-    /** Updates the secondary model selection for comparison mode. */
+    /** Sets the secondary selection to a named spec, carrying its name with the comparison's sends. */
     fun setSecondarySpec(spec: ModelSpec) {
         val seed = spec.toSeed() ?: return
-        setSecondaryModel(seed.endpoint, seed.model)
-        handle.update { comparisonState = comparisonState.copy(secondarySpec = spec.name) }
+        val comparison = handle.state.comparisonState
+        if (!comparison.isEnabled) return
+        handle.update {
+            comparisonState = comparison.copy(
+                secondaryEndpoint = seed.endpoint,
+                secondaryModel = seed.model,
+                secondarySpec = seed.spec,
+            )
+        }
     }
 
+    /** Updates the secondary model selection for comparison mode. */
     fun setSecondaryModel(endpoint: String, model: String) {
         val comparison = handle.state.comparisonState
         if (!comparison.isEnabled) return

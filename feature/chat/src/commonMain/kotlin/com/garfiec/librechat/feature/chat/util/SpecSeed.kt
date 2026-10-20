@@ -22,15 +22,15 @@ internal data class SpecSeed(
  * Port of upstream's `getDefaultModelSpec` (`client/src/utils/endpoints.ts`) combined with the
  * `shouldApplyModelSpec` gate in `useNewConvo.ts`, which decides whether its answer is used.
  *
- * Upstream's `last` branch (a stored spec name) has no counterpart: this client persists a
- * last-used (endpoint, model) preference without a spec name, so that case is the seeder's last-used
- * tier. For the same reason, "yields to the user's prior selection" for a soft default is decided
- * by the seeder (a usable last-used wins), not here.
+ * [lastSpec] is upstream's stored `LAST_CONVO_SETUP.spec`: the spec name of the user's last pick,
+ * null when that pick was a raw model. "Yields to the user's prior selection" for a soft default
+ * with no stored spec is decided by the seeder (a usable last-used wins), not here.
  */
-internal fun resolveDefaultModelSpec(config: StartupConfig?): SpecSeed? {
-    val specs = config?.modelSpecs ?: return null
-    if (specs.list.isEmpty()) return null
-    val modelSelect = config.interfaceConfig?.modelSelect ?: true
+internal fun resolveDefaultModelSpec(config: StartupConfig?, lastSpec: String? = null): SpecSeed? =
+    resolveDefaultModelSpec(config?.modelSpecs, config?.interfaceConfig?.modelSelect ?: true, lastSpec)
+
+internal fun resolveDefaultModelSpec(specs: ModelSpecs?, modelSelect: Boolean, lastSpec: String?): SpecSeed? {
+    if (specs == null || specs.list.isEmpty()) return null
     val prioritized = specs.prioritize == true || !modelSelect
 
     val hard = specs.list.firstOrNull { it.isDefault }
@@ -39,6 +39,11 @@ internal fun resolveDefaultModelSpec(config: StartupConfig?): SpecSeed? {
         return if (prioritized) hard.toSeed(prioritized = true) else null
     }
     val soft = specs.list.firstOrNull { it.softDefault }
+    // Upstream applies a stored spec on every new chat, whatever `prioritize` says.
+    val last = lastSpec?.let { name -> specs.list.firstOrNull { it.name == name } }
+    if (last != null && last.name != soft?.name) {
+        last.toSeed(prioritized = true)?.let { return it }
+    }
     if (soft != null) {
         // With the selector off there is no prior selection to yield to. `prioritize` does not
         // upgrade a soft default: upstream checks the soft branch first.
@@ -57,6 +62,17 @@ internal fun ModelSpec.toSeed(prioritized: Boolean = false): SpecSeed? {
     return SpecSeed(endpoint, model, prioritized, name)
 }
 
-/** Raw endpoint rows are separate from named specs; never infer a spec from a model match. */
-internal fun ModelSpecs?.allowsRawEndpoint(endpoint: String): Boolean =
+/**
+ * Whether the picker lists [endpoint]'s raw models and agents next to the named specs. Mirrors
+ * the `addedEndpoints` filter in upstream's `useEndpoints`. Under `enforce` with no
+ * `addedEndpoints`, nothing raw is listed: web lists everything there, and every pick fails.
+ */
+internal fun ModelSpecs?.showsRawEndpoint(endpoint: String): Boolean =
     this == null || (addedEndpoints.isEmpty() && !enforce) || endpoint in addedEndpoints
+
+/**
+ * Whether the server rejects any send that names no spec (`buildEndpointOption.js`). It has no
+ * exception for `addedEndpoints`, so raw rows shown under it can't be sent to.
+ */
+internal val ModelSpecs?.requiresSpec: Boolean
+    get() = this != null && enforce && list.isNotEmpty()

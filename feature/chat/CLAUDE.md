@@ -104,20 +104,34 @@ Which spec applies, and whether it is prioritized, is `util/SpecSeed.kt`, a port
   Tier-0 override yields it. `ChatViewModel.onPendingNavigationHandled` re-arms it, so the next new
   chat is back on the spec. A spec agent the loaded list doesn't contain (deleted, not shared, no
   agents at all, agents denied) falls through to the ordinary tiers.
+- **Last spec**: a spec the user picked is stored with the last-used pair (`lastUsedSpec`; a raw
+  pick clears it). Unless a spec is marked `default`, new chats reopen on it, under `prioritize` too
+  and ahead of a soft default, as web reopens on `LAST_CONVO_SETUP.spec`. On restore the name is kept
+  only while the server still offers that spec on the same endpoint and model. Known divergence: web
+  also rewrites that setup when a conversation is opened, so opening a spec-B chat makes B the next
+  new chat's spec; mobile writes last-used only on a pick.
 - **Soft default**: applies only when last-used can't, so a user's own selection wins.
 
-**Known mobile gap: the user's preferred model is ignored under prioritize.** Last-used is still
-saved on every pick, but under a prioritized spec it never seeds a new chat. A pick lasts for the
-chat it was made in. That is web parity, and deliberate for now. A setting to prefer the user's own
-model over the server's spec is a possible follow-up. It would be a mobile addition (web has none),
-so it belongs in Settings, not in the resolver.
+**Known mobile gap: a raw model pick is ignored under prioritize.** Last-used is still saved on
+every pick, but under a prioritized spec a raw model never seeds a new chat; only a spec pick
+carries over. That is web parity. A setting to prefer the user's own model over the server's spec
+is a possible follow-up (#552). It would be a mobile addition (web has none), so it belongs in
+Settings, not in the resolver.
 
-The spec's name is retained alongside its endpoint/model or agent selection and sent as `spec`.
-Named specs are separate picker entries even when they share an underlying model. Raw picks clear the
-spec identity; enforced spec-only deployments hide raw choices. Queue/composer snapshots, new-chat
-handoff, conversation cache, comparison selection, and paused-run pins preserve that identity.
-The nullable conversation `spec` column is added by the 10→11 Room auto-migration. Temporary chats
-remain excluded from the cache. Preset parameters keep their existing application behavior.
+**The spec name travels with the selection and is sent as `spec`.** Named specs are separate picker
+rows even when they share a model, and a raw pick clears the name; nothing infers a spec from a
+model match. Queue and composer snapshots, the new-chat handoff, the conversation cache (`spec`
+column, Room 10→11), comparison, presets, edit/regenerate and paused-run pins all carry it. Sending
+it changes what the server does even without `enforce`: it fills the spec's unset private preset
+fields (`promptPrefix`, `instructions`, `system`, …) into the request (`mergeModelSpecPreset`), so a
+chat opened on a spec gets the admin's prompt as on web.
+
+**`enforce` has no exception for `addedEndpoints`.** With `modelSpecs.enforce` and a non-empty list
+the server rejects any send without a `spec` (`buildEndpointOption.js`). So `requiresSpec` blocks
+such a send in the preflight, and the picker greys the raw rows it still lists (those in
+`addedEndpoints`, as web lists them) under a note. With no `addedEndpoints` it lists no raw rows at
+all, where web lists everything and every pick fails. A cached conversation with no spec under
+`enforce` is refreshed from the server once per process.
 
 ## Message Tree
 - Messages stored flat, linked by `parentMessageId` (root = `NO_PARENT` UUID)
