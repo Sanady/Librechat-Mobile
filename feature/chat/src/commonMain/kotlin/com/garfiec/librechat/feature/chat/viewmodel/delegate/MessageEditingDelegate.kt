@@ -259,6 +259,7 @@ class MessageEditingDelegate(
                 key = dispatch.key,
                 modelDisplayLabel = dispatch.modelDisplayLabel,
                 model = state.selectedModel,
+                spec = state.selectedSpec,
                 userMessageId = userMessageId,
                 parentMessageId = parentMessageId,
                 agentId = if (isAgent) state.selectedModel else null,

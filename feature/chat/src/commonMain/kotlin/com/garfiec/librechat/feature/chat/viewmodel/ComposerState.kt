@@ -123,6 +123,7 @@ data class ComposerSnapshot(
     val attachments: List<AttachedFile> = emptyList(),
     val endpoint: String,
     val model: String?,
+    val modelSpec: String? = null,
     val enabledTools: Set<String> = emptySet(),
     val mcpServerNames: Set<String> = emptySet(),
     val modelParameters: ModelParameters = ModelParameters.DEFAULT,

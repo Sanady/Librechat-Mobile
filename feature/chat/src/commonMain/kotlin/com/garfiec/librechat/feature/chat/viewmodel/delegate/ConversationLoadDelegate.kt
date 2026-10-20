@@ -307,7 +307,13 @@ class ConversationLoadDelegate(
         }
         handle.scope.launch {
             val result = conversationRepository.getConversation(conversationId, originAccount = null)
-            val conversation = result.getOrNull()
+            var conversation = result.getOrNull()
+            // Rows written before spec support have no identity cached. Fetch it from the server;
+            // endpoint/model matching cannot distinguish multiple specs for the same model.
+            if (conversation != null && conversation.spec == null && handle.state.selection.modelSpecs?.enforce == true) {
+                conversation = conversationRepository.refreshConversation(conversationId, originAccount = null)
+                    .getOrNull() ?: conversation
+            }
             if (conversation != null) {
                 handle.update { conversationTitle = conversation.title }
                 val applied = applyConversationModel(conversation)

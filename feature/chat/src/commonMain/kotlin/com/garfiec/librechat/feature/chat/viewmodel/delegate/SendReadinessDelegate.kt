@@ -70,6 +70,11 @@ class SendReadinessDelegate(
      * instantaneous instead of waiting out the readiness timeout.
      */
     private fun preflightSendBlockReason(state: ChatUiState): SendBlockReason? {
+        if (state.selection.modelSpecs?.enforce == true && state.selectedSpec.isNullOrBlank() &&
+            state.selectedEndpoint !in state.selection.modelSpecs.addedEndpoints
+        ) {
+            return SendBlockReason.SelectModel
+        }
         if (state.selectedModel == null) {
             return if (state.selectedEndpoint == EndpointConstants.AGENTS) {
                 SendBlockReason.SelectAgent

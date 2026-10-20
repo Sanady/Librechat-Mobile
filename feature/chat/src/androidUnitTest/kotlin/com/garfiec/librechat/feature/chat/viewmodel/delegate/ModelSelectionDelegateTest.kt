@@ -1703,4 +1703,18 @@ class ModelSelectionDelegateTest {
         assertThat(handle.state.selectedEndpoint).isEqualTo(EndpointConstants.AGENTS)
         assertThat(handle.state.selectedModel).isEqualTo("agent_soft")
     }
+
+    @Test
+    fun namedSpecsSharingAModelRemainDistinctAndRawSelectionClearsSpec() = runTest {
+        val handle = newHandle(TestScope(StandardTestDispatcher(testScheduler)))
+        val delegate = newDelegate(handle)
+        val first = ModelSpec(name = "first", preset = Preset(endpoint = "custom", model = "same"))
+        delegate.onSpecSelected(first)
+        assertThat(handle.state.selectedSpec).isEqualTo("first")
+        delegate.onSpecSelected(first.copy(name = "second"))
+        assertThat(handle.state.selectedModel).isEqualTo("same")
+        assertThat(handle.state.selectedSpec).isEqualTo("second")
+        delegate.onModelSelected("custom", "same")
+        assertThat(handle.state.selectedSpec).isNull()
+    }
 }

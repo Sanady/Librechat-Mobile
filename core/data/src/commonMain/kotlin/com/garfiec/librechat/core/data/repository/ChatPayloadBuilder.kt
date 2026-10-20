@@ -39,6 +39,7 @@ object ChatPayloadBuilder {
         ephemeralAgent: EphemeralAgent? = null,
         isTemporary: Boolean = false,
         quotes: List<String>? = null,
+        spec: String? = null,
     ): ChatRequest {
         val resolvedParentMessageId = parentMessageId ?: NO_PARENT
 
@@ -52,6 +53,7 @@ object ChatPayloadBuilder {
             key = key,
             modelDisplayLabel = modelDisplayLabel,
             model = model,
+            spec = spec,
             agentId = agentId,
             overrideParentMessageId = overrideParentMessageId,
             responseMessageId = responseMessageId,

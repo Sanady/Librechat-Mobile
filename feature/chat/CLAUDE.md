@@ -112,9 +112,12 @@ chat it was made in. That is web parity, and deliberate for now. A setting to pr
 model over the server's spec is a possible follow-up. It would be a mobile addition (web has none),
 so it belongs in Settings, not in the resolver.
 
-Only the preset's (endpoint, model) or `agent_id` is applied. Nothing else from the preset is
-applied, and no `spec` name is sent with the request, so a `modelSpecs.enforce` server may still
-reject a send.
+The spec's name is retained alongside its endpoint/model or agent selection and sent as `spec`.
+Named specs are separate picker entries even when they share an underlying model. Raw picks clear the
+spec identity; enforced spec-only deployments hide raw choices. Queue/composer snapshots, new-chat
+handoff, conversation cache, comparison selection, and paused-run pins preserve that identity.
+The nullable conversation `spec` column is added by the 10→11 Room auto-migration. Temporary chats
+remain excluded from the cache. Preset parameters keep their existing application behavior.
 
 ## Message Tree
 - Messages stored flat, linked by `parentMessageId` (root = `NO_PARENT` UUID)

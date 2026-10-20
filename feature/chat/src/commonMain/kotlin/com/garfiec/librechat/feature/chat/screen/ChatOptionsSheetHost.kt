@@ -91,6 +91,9 @@ internal fun ChatOptionsSheetHost(
         ),
         // Point the selector page at the active tab's model, so the sheet needs no comparison branch.
         selector = ModelSelectorPageParams(
+            modelSpecs = uiState.selection.modelSpecs,
+            selectedSpec = if (isSecondaryTab) uiState.comparisonState.secondarySpec else uiState.selectedSpec,
+            onSpecSelect = if (isSecondaryTab) viewModel::setSecondarySpec else viewModel::onSpecSelected,
             endpointConfigs = uiState.endpointConfigs,
             availableModels = uiState.availableModels,
             agents = uiState.agents,

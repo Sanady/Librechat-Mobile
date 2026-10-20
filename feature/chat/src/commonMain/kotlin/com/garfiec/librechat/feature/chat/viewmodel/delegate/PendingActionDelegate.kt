@@ -167,6 +167,7 @@ class PendingActionDelegate(
         val endpointType: String?,
         val agentId: String?,
         val model: String?,
+        val spec: String?,
         /**
          * The `promptPrefix` ("Custom Instructions") the send POST carried at the TOP LEVEL of its
          * body, spread there out of the model-parameter payload
@@ -177,9 +178,6 @@ class PendingActionDelegate(
          * Null whenever the send omitted the key: nothing customized, or a wire key that is not
          * `promptPrefix` (bedrock-anthropic sends `system`, which the fingerprint does not cover).
          *
-         * `spec` is the fingerprint's one remaining field with no pin here, and cannot be sent by
-         * this client: nothing populates [com.garfiec.librechat.core.model.request.ChatRequest.spec],
-         * so both bodies hash it as null. Pin it here the moment a send path starts setting it.
          */
         val promptPrefix: String?,
         val ephemeralAgent: EphemeralAgent?,
@@ -649,6 +647,7 @@ class PendingActionDelegate(
                     endpointType = turn.endpointType,
                     agentId = turn.agentId,
                     model = turn.model,
+                    spec = turn.spec,
                     promptPrefix = turn.promptPrefix,
                     ephemeralAgent = turn.ephemeralAgent,
                     isTemporary = turn.isTemporary.takeIf { it },
@@ -724,6 +723,7 @@ class PendingActionDelegate(
         endpointType = dispatch.endpointType,
         agentId = agentId.takeIf { endpoint == EndpointConstants.AGENTS },
         model = model,
+        spec = modelSpec,
         promptPrefix = modelParamsPayload.promptPrefix(),
         ephemeralAgent = ephemeralAgent,
         isTemporary = isTemporary,
@@ -734,6 +734,7 @@ class PendingActionDelegate(
         endpointType = endpointType,
         agentId = agentId,
         model = model,
+        spec = spec,
         promptPrefix = promptPrefix,
         ephemeralAgent = ephemeralAgent,
         isTemporary = isTemporary,
@@ -744,6 +745,7 @@ class PendingActionDelegate(
         endpointType = endpointType,
         agentId = agentId,
         model = model,
+        spec = spec,
         promptPrefix = promptPrefix,
         ephemeralAgent = ephemeralAgent,
         isTemporary = isTemporary,
@@ -758,6 +760,7 @@ class PendingActionDelegate(
             endpointType = dispatch.endpointType,
             agentId = if (isAgent) state.selectedModel else null,
             model = state.selectedModel,
+            spec = state.selectedSpec,
             promptPrefix = requestBuilder.buildModelParams().promptPrefix(),
             ephemeralAgent = requestBuilder.buildEphemeralAgent(),
             isTemporary = state.isTemporaryChat,

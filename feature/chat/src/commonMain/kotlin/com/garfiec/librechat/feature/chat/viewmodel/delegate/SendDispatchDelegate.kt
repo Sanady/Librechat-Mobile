@@ -89,6 +89,7 @@ class SendDispatchDelegate(
             attachments = files,
             endpoint = state.selectedEndpoint,
             model = state.selectedModel,
+            modelSpec = state.selectedSpec,
             agentId = if (isAgent) state.selectedModel else null,
             enabledTools = state.enabledTools,
             mcpServerNames = state.selectedMcpServerNames,
@@ -252,7 +253,7 @@ class SendDispatchDelegate(
         Logger.d {
             "sendMessage: webSearch=${spec.modelParameters.webSearch}, " +
                 "endpoint=${spec.endpoint}, " +
-                "model=${spec.model}, " +
+                "model=${spec.model}, spec=${spec.modelSpec}, " +
                 "files=${fileRefs.size}, " +
                 "ephemeralAgent=${spec.ephemeralAgent}"
         }
@@ -274,6 +275,7 @@ class SendDispatchDelegate(
             key = spec.dispatch.key,
             modelDisplayLabel = spec.dispatch.modelDisplayLabel,
             model = spec.model,
+            spec = spec.modelSpec,
             userMessageId = optimisticMessage.messageId,
             parentMessageId = lastMessageId,
             agentId = effectiveAgentId,

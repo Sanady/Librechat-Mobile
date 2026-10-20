@@ -43,6 +43,7 @@ interface ChatRepository {
         modelParams: JsonObject? = null,
         /** Quoted excerpts riding this turn (v0.8.7); null/empty sends none. */
         quotes: List<String>? = null,
+        spec: String? = null,
     ): Flow<StreamEvent>
 
     /**

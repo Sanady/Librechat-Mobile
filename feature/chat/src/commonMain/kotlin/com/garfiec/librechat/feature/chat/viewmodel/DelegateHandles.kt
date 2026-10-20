@@ -438,6 +438,7 @@ class QueueOrchestrationWrites internal constructor(state: ChatUiState) {
     var editingQueuedItem: QueuedEditSession? = state.composer.editingQueuedItem
     var selectedEndpoint: String = state.selection.selectedEndpoint
     var selectedModel: String? = state.selection.selectedModel
+    var selectedSpec: String? = state.selection.selectedSpec
     var enabledTools: Set<String> = state.selection.enabledTools
     var selectedMcpServerNames: Set<String> = state.selection.selectedMcpServerNames
     var modelParameters: ModelParameters = state.selection.modelParameters
@@ -451,6 +452,7 @@ class QueueOrchestrationWrites internal constructor(state: ChatUiState) {
         selection = s.selection.copy(
             selectedEndpoint = selectedEndpoint,
             selectedModel = selectedModel,
+            selectedSpec = selectedSpec,
             enabledTools = enabledTools,
             selectedMcpServerNames = selectedMcpServerNames,
             modelParameters = modelParameters,

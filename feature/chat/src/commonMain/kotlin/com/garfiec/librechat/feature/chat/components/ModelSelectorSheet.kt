@@ -54,6 +54,8 @@ import com.garfiec.librechat.core.common.EndpointConstants
 import com.garfiec.librechat.core.data.datastore.StarredModelsDisplay
 import com.garfiec.librechat.core.model.Agent
 import com.garfiec.librechat.core.model.EndpointConfig
+import com.garfiec.librechat.core.model.config.ModelSpec
+import com.garfiec.librechat.core.model.config.ModelSpecs
 import com.garfiec.librechat.core.model.endpoint.KeyState
 import com.garfiec.librechat.core.model.media.resolveAvatarUrl
 import com.garfiec.librechat.core.ui.components.AdaptiveDivider
@@ -72,6 +74,8 @@ import com.garfiec.librechat.core.ui.components.rememberListDragSelection
 import com.garfiec.librechat.feature.chat.resources.*
 import com.garfiec.librechat.feature.chat.resources.Res
 import com.garfiec.librechat.feature.chat.util.FuzzyMatch
+import com.garfiec.librechat.feature.chat.util.allowsRawEndpoint
+import com.garfiec.librechat.feature.chat.util.toSeed
 import com.garfiec.librechat.feature.chat.viewmodel.delegate.FavoritesDelegate
 import com.garfiec.librechat.feature.chat.viewmodel.delegate.filterModelsByEndpoint
 import org.jetbrains.compose.resources.stringResource
@@ -120,6 +124,9 @@ fun ModelSelectorSheet(
     onModelSelect: (endpoint: String, model: String) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    modelSpecs: ModelSpecs? = null,
+    selectedSpec: String? = null,
+    onSpecSelect: (ModelSpec) -> Unit = {},
     serverUrl: String = "",
     errorMessage: String? = null,
     onErrorDismiss: () -> Unit = {},
@@ -161,6 +168,9 @@ fun ModelSelectorSheet(
             selectedEndpoint = selectedEndpoint,
             selectedModel = selectedModel,
             onModelSelect = onModelSelect,
+            modelSpecs = modelSpecs,
+            selectedSpec = selectedSpec,
+            onSpecSelect = onSpecSelect,
             onSetApiKey = onSetApiKey,
             modifier = Modifier.fillMaxSize(),
             serverUrl = serverUrl,
@@ -195,6 +205,9 @@ fun ModelSelectorSheetContent(
      */
     onSetApiKey: (endpointName: String) -> Unit,
     modifier: Modifier = Modifier,
+    modelSpecs: ModelSpecs? = null,
+    selectedSpec: String? = null,
+    onSpecSelect: (ModelSpec) -> Unit = {},
     serverUrl: String = "",
     errorMessage: String? = null,
     onErrorDismiss: () -> Unit = {},
@@ -225,14 +238,16 @@ fun ModelSelectorSheetContent(
     val isSearching = searchQuery.isNotBlank()
 
     // Filter to only show models for endpoints the user's server has enabled
-    val filteredByEndpoint = remember(availableModels, endpointConfigs) {
-        filterModelsByEndpoint(availableModels, endpointConfigs)
+    val filteredByEndpoint = remember(availableModels, endpointConfigs, modelSpecs) {
+        filterModelsByEndpoint(availableModels, endpointConfigs).filterKeys { endpoint ->
+            modelSpecs.allowsRawEndpoint(endpoint)
+        }
     }
 
     // Filter agents by search query (fuzzy matching), sorted by score when searching.
     // When not searching, pinned agents (v0.8.5+) sort to the top of the list.
-    val filteredAgents = remember(agents, searchQuery, favoriteAgentIds) {
-        val agents = agents.distinctBy { it.id }
+    val filteredAgents = remember(agents, searchQuery, favoriteAgentIds, modelSpecs) {
+        val agents = agents.distinctBy { it.id }.takeIf { modelSpecs.allowsRawEndpoint(EndpointConstants.AGENTS) }.orEmpty()
         val base = if (!isSearching) {
             agents
         } else if (searchQuery.length <= 2) {
@@ -262,7 +277,9 @@ fun ModelSelectorSheetContent(
     val showStarred = !isSearching && starredDisplay != StarredModelsDisplay.OFF
     // favoriteAgentIds / favoriteModelKeys are LinkedHashSets from FavoritesDelegate.publish,
     // so iterating them preserves the server-side pin order.
-    val agentsById = remember(agents) { agents.associateBy { it.id } }
+    val agentsById = remember(agents, modelSpecs) {
+        agents.takeIf { modelSpecs.allowsRawEndpoint(EndpointConstants.AGENTS) }.orEmpty().associateBy { it.id }
+    }
     val starredAgents = remember(agentsById, favoriteAgentIds, showStarred) {
         if (!showStarred) emptyList() else favoriteAgentIds.mapNotNull { agentsById[it] }
     }
@@ -328,6 +345,24 @@ fun ModelSelectorSheetContent(
                 .weight(1f)
                 .listDragSelection(dragSelection, holdOnly = true),
         ) {
+            items(
+                items = modelSpecs?.list.orEmpty().filter { spec ->
+                    spec.showInMenu != false && spec.toSeed() != null &&
+                        (!isSearching || fuzzyMatches(spec.label ?: spec.name, searchQuery))
+                },
+                key = { "spec:${it.name}" },
+            ) { spec ->
+                val seed = spec.toSeed()
+                val keyState = endpointKeyStates[seed?.endpoint]
+                val keyRequired = keyState == KeyState.Unset || keyState == KeyState.Expired
+                TextButton(
+                    onClick = { if (keyRequired) seed?.let { onSetApiKey(it.endpoint) } else onSpecSelect(spec) },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                ) {
+                    if (selectedSpec == spec.name) Icon(Icons.Default.Check, contentDescription = null)
+                    Text(spec.label ?: spec.name, modifier = Modifier.weight(1f))
+                }
+            }
             // Optional "Starred" section at the very top (mobile-only). Starred items
             // are duplicated here — they still render in their own groups below.
             if (showStarred && hasStarred) {

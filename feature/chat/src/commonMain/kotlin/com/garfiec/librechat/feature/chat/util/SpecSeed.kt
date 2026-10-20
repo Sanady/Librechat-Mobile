@@ -2,6 +2,7 @@ package com.garfiec.librechat.feature.chat.util
 
 import com.garfiec.librechat.core.common.EndpointConstants
 import com.garfiec.librechat.core.model.config.ModelSpec
+import com.garfiec.librechat.core.model.config.ModelSpecs
 import com.garfiec.librechat.core.model.config.StartupConfig
 
 /**
@@ -14,6 +15,7 @@ internal data class SpecSeed(
     val endpoint: String,
     val model: String,
     val prioritized: Boolean,
+    val spec: String,
 )
 
 /**
@@ -21,7 +23,7 @@ internal data class SpecSeed(
  * `shouldApplyModelSpec` gate in `useNewConvo.ts`, which decides whether its answer is used.
  *
  * Upstream's `last` branch (a stored spec name) has no counterpart: this client persists a
- * last-used (endpoint, model) pair and never a spec name, so that case is the seeder's last-used
+ * last-used (endpoint, model) preference without a spec name, so that case is the seeder's last-used
  * tier. For the same reason, "yields to the user's prior selection" for a soft default is decided
  * by the seeder (a usable last-used wins), not here.
  */
@@ -45,11 +47,16 @@ internal fun resolveDefaultModelSpec(config: StartupConfig?): SpecSeed? {
     return if (prioritized) specs.list.first().toSeed(prioritized = true) else null
 }
 
-private fun ModelSpec.toSeed(prioritized: Boolean): SpecSeed? {
+internal fun ModelSpec.toSeed(prioritized: Boolean = false): SpecSeed? {
+    if (name.isBlank()) return null
     val preset = preset ?: return null
     val agentId = preset.agentId?.takeIf { it.isNotBlank() }
-    if (agentId != null) return SpecSeed(EndpointConstants.AGENTS, agentId, prioritized)
+    if (agentId != null) return SpecSeed(EndpointConstants.AGENTS, agentId, prioritized, name)
     val endpoint = preset.endpoint?.takeIf { it.isNotBlank() } ?: return null
     val model = preset.model?.takeIf { it.isNotBlank() } ?: return null
-    return SpecSeed(endpoint, model, prioritized)
+    return SpecSeed(endpoint, model, prioritized, name)
 }
+
+/** Raw endpoint rows are separate from named specs; never infer a spec from a model match. */
+internal fun ModelSpecs?.allowsRawEndpoint(endpoint: String): Boolean =
+    this == null || (addedEndpoints.isEmpty() && !enforce) || endpoint in addedEndpoints

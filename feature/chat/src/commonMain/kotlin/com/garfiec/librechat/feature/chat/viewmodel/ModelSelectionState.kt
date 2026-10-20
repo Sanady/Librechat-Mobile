@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import com.garfiec.librechat.core.common.EndpointConstants
 import com.garfiec.librechat.core.model.Agent
 import com.garfiec.librechat.core.model.EndpointConfig
+import com.garfiec.librechat.core.model.config.ModelSpecs
 import com.garfiec.librechat.core.model.endpoint.KeyState
 import com.garfiec.librechat.core.ui.components.ModelParameters
 import com.garfiec.librechat.feature.chat.model.McpServerDisplayData
@@ -17,6 +18,8 @@ import com.garfiec.librechat.feature.chat.model.McpServerDisplayData
 @Immutable
 data class ModelSelectionState(
     val selectedModel: String? = null,
+    val selectedSpec: String? = null,
+    val modelSpecs: ModelSpecs? = null,
     val selectedEndpoint: String = EndpointConstants.AGENTS,
     val endpointConfigs: Map<String, EndpointConfig> = emptyMap(),
     /**

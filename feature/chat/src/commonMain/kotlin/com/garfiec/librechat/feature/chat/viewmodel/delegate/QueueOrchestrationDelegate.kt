@@ -128,6 +128,7 @@ class QueueOrchestrationDelegate(
             attachments = receipt.files.orEmpty().map { it.toAttachedFile(state.serverUrl) },
             endpoint = state.selectedEndpoint,
             model = state.selectedModel,
+            modelSpec = state.selectedSpec,
             agentId = state.selectedModel.takeIf {
                 state.selectedEndpoint == EndpointConstants.AGENTS
             },
@@ -440,6 +441,7 @@ class QueueOrchestrationDelegate(
             attachments = fileHandler.attachedFiles.value,
             endpoint = state.selectedEndpoint,
             model = state.selectedModel,
+            modelSpec = state.selectedSpec,
             enabledTools = state.enabledTools,
             mcpServerNames = state.selectedMcpServerNames,
             modelParameters = state.modelParameters,
@@ -458,6 +460,7 @@ class QueueOrchestrationDelegate(
             pendingUploadRouting = null
             selectedEndpoint = snapshot.endpoint
             selectedModel = snapshot.model
+            selectedSpec = snapshot.modelSpec
             enabledTools = snapshot.enabledTools
             selectedMcpServerNames = snapshot.mcpServerNames
             modelParameters = snapshot.modelParameters

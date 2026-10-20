@@ -31,6 +31,14 @@ internal fun PrimaryModelSelectorSheet(
         agents = uiState.agents,
         selectedEndpoint = uiState.selectedEndpoint,
         selectedModel = uiState.selectedModel,
+        selectedSpec = uiState.selectedSpec,
+        modelSpecs = uiState.selection.modelSpecs,
+        onSpecSelect = { spec ->
+            viewModel.onSpecSelected(spec)
+            viewModel.dismissError()
+            viewModel.dismissSendBlockReason()
+            viewModel.dismissModelSheet()
+        },
         onModelSelect = { endpoint, model ->
             viewModel.onModelSelected(endpoint, model)
             // Clear a pending snackbar for the same error so it doesn't flash behind the close.
@@ -82,6 +90,9 @@ internal fun SecondaryModelSelectorSheet(
         agents = uiState.agents,
         selectedEndpoint = uiState.comparisonState.secondaryEndpoint,
         selectedModel = uiState.comparisonState.secondaryModel,
+        selectedSpec = uiState.comparisonState.secondarySpec,
+        modelSpecs = uiState.selection.modelSpecs,
+        onSpecSelect = { spec -> viewModel.setSecondarySpec(spec); onDismiss() },
         onModelSelect = { endpoint, model ->
             viewModel.setSecondaryModel(endpoint, model)
             onDismiss()

@@ -14,6 +14,8 @@ import com.garfiec.librechat.core.logging.Diag
 import com.garfiec.librechat.core.model.Agent
 import com.garfiec.librechat.core.model.Conversation
 import com.garfiec.librechat.core.model.EndpointConfig
+import com.garfiec.librechat.core.model.config.ModelSpec
+import com.garfiec.librechat.core.model.config.ModelSpecs
 import com.garfiec.librechat.core.model.mcp.McpServer
 import com.garfiec.librechat.core.model.permissions.Permission
 import com.garfiec.librechat.core.model.permissions.PermissionType
@@ -21,6 +23,7 @@ import com.garfiec.librechat.core.ui.components.ModelParameters
 import com.garfiec.librechat.feature.chat.model.McpServerDisplayData
 import com.garfiec.librechat.feature.chat.util.SpecSeed
 import com.garfiec.librechat.feature.chat.util.resolveDefaultModelSpec
+import com.garfiec.librechat.feature.chat.util.toSeed
 import com.garfiec.librechat.feature.chat.viewmodel.ModelSelectionHandle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -115,8 +118,8 @@ class ModelSelectionDelegate(
      * resolved existing/just-created conversation's selection — used by the new-chat handoff
      * and by [ChatViewModel]'s conversation reads — so the flags can't drift from the value.
      */
-    fun applyResolvedConversationModel(endpoint: String, model: String?) {
-        applySelection(endpoint, model, reason = "conversationResolved")
+    fun applyResolvedConversationModel(endpoint: String, model: String?, spec: String? = null) {
+        applySelection(endpoint, model, reason = "conversationResolved", spec = spec)
         conversationModelLoaded = true
         conversationModelResolved = true
     }
@@ -137,7 +140,7 @@ class ModelSelectionDelegate(
             conversation.model
         }
         if (endpoint != null && resolvedModel != null) {
-            applyResolvedConversationModel(endpoint, resolvedModel)
+            applyResolvedConversationModel(endpoint, resolvedModel, conversation.spec)
             return true
         }
         return false
@@ -435,6 +438,7 @@ class ModelSelectionDelegate(
                     selection = selection.copy(
                         selectedEndpoint = lastEndpoint,
                         selectedModel = lastModel,
+                    selectedSpec = null,
                     )
                 }
                 return
@@ -455,6 +459,7 @@ class ModelSelectionDelegate(
                 selection = selection.copy(
                     selectedEndpoint = firstEndpoint.key,
                     selectedModel = firstEndpoint.value.firstOrNull(),
+                    selectedSpec = null,
                 )
             }
         }
@@ -489,8 +494,8 @@ class ModelSelectionDelegate(
                 configRepository.availableModels,
                 configRepository.endpointConfigs,
                 agentsInput(),
-                configRepository.startupConfig.map(::resolveDefaultModelSpec).distinctUntilChanged(),
-            ) { lastUsed, rawModels, endpointCfgs, agents, specSeed ->
+                configRepository.startupConfig,
+            ) { lastUsed, rawModels, endpointCfgs, agents, config ->
                 SeedInputs(
                     lastEndpoint = lastUsed.first,
                     lastModel = lastUsed.second,
@@ -499,9 +504,11 @@ class ModelSelectionDelegate(
                     agents = agents.agents,
                     agentsLoaded = agents.loaded,
                     conversationId = agents.conversationId,
-                    specSeed = specSeed,
+                    specSeed = resolveDefaultModelSpec(config),
+                modelSpecs = config?.modelSpecs,
                 )
             }.collect { input ->
+                handle.update { selection = selection.copy(modelSpecs = input.modelSpecs) }
                 // Keep the cached last-used fresh for refilterModels' existing-
                 // conversation corrective fallback. This runs for every conversation
                 // (new and existing) — the old eager one-shot read in ChatViewModel
@@ -725,7 +732,7 @@ class ModelSelectionDelegate(
         if (specYielded) return false
         if (specSelectability(seed, filtered, input) == Selectability.INVALID) return false
         lastAppliedLastUsed = lastUsed
-        applySelection(seed.endpoint, seed.model, reason = "tier0b-prioritizedSpec")
+        applySelection(seed.endpoint, seed.model, reason = "tier0b-prioritizedSpec", spec = seed.spec)
         return true
     }
 
@@ -737,7 +744,7 @@ class ModelSelectionDelegate(
         val seed = input.specSeed?.takeUnless { it.prioritized } ?: return false
         return when (specSelectability(seed, filtered, input)) {
             Selectability.VALID -> {
-                applySelection(seed.endpoint, seed.model, reason = "tier1b-softSpec")
+                applySelection(seed.endpoint, seed.model, reason = "tier1b-softSpec", spec = seed.spec)
                 true
             }
             Selectability.PENDING -> true
@@ -761,11 +768,11 @@ class ModelSelectionDelegate(
         return selectability(seed.endpoint, seed.model, filtered, input.endpointConfigs, input.agents, input.agentsLoaded)
     }
 
-    private fun applySelection(endpoint: String, model: String?, reason: String) {
+    private fun applySelection(endpoint: String, model: String?, reason: String, spec: String? = null) {
         val previous = handle.state
         val changed = previous.selectedEndpoint != endpoint || previous.selectedModel != model
         handle.update {
-            selection = selection.copy(selectedEndpoint = endpoint, selectedModel = model)
+            selection = selection.copy(selectedEndpoint = endpoint, selectedModel = model, selectedSpec = spec)
         }
         if (changed) {
             Diag.d(
@@ -796,9 +803,9 @@ class ModelSelectionDelegate(
      * `applySeed` falls straight through to Tier 2/3 and re-arms. The sibling bug — a `?spec=`
      * cold load rendering a chimera of spec chip and agent entity — needs a persisted selection
      * that is a bare SPEC NAME carrying no endpoint or model; this client persists
-     * `lastUsedEndpoint` and `lastUsedModel` as a pair and models no spec-name selection at all.
-     * Model specs are resolved for seeding (Tier 0b / 1b), but only as the (endpoint, model) their
-     * preset names. No spec name is ever selected or persisted, so that premise still holds.
+     * `lastUsedEndpoint` and `lastUsedModel` as a pair. A selected spec now retains its name,
+     * but always alongside the resolved endpoint/model, including handoff and cache restoration.
+     * There is still no bare-spec-name selection, so that premise continues to hold.
      *
      * Do not "port" either fix on a later sync without first re-checking those two premises.
      */
@@ -848,6 +855,7 @@ class ModelSelectionDelegate(
         val agentsLoaded: Boolean,
         val conversationId: String?,
         val specSeed: SpecSeed?,
+        val modelSpecs: ModelSpecs?,
     )
 
     private data class AgentsInput(
@@ -856,6 +864,12 @@ class ModelSelectionDelegate(
         val loaded: Boolean,
     )
 
+    fun onSpecSelected(spec: ModelSpec) {
+        val seed = spec.toSeed() ?: return
+        if (seedsNewChat && handle.state.conversationId == null) specYielded = true
+        applySelection(seed.endpoint, seed.model, reason = "explicitSpec", spec = seed.spec)
+    }
+
     fun onModelSelected(endpoint: String, model: String) {
         // A pick on the new-chat landing displaces the server's prioritized spec for this chat.
         if (seedsNewChat && handle.state.conversationId == null) specYielded = true
@@ -863,6 +877,7 @@ class ModelSelectionDelegate(
             selection = selection.copy(
                 selectedEndpoint = endpoint,
                 selectedModel = model,
+                selectedSpec = null,
             )
         }
         // Keep cached values in sync so refilterModels uses the latest choice

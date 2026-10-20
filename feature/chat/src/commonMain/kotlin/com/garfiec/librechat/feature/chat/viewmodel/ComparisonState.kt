@@ -8,6 +8,7 @@ data class ComparisonState(
     // Secondary agent/model selection (set by user via model selector)
     val secondaryEndpoint: String? = null,
     val secondaryModel: String? = null,
+    val secondarySpec: String? = null,
     // Resolved agent IDs from SSE events (set during streaming)
     val primaryAgentId: String? = null,
     val secondaryAgentId: String? = null,

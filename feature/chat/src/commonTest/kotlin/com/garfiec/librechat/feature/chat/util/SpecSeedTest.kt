@@ -40,7 +40,7 @@ class SpecSeedTest {
     fun a_default_spec_applies_only_when_prioritized() {
         val specs = arrayOf(agent("a"), agent("b", isDefault = true))
         assertEquals(
-            SpecSeed(EndpointConstants.AGENTS, "b", prioritized = true),
+            SpecSeed(EndpointConstants.AGENTS, "b", prioritized = true, spec = "b"),
             resolveDefaultModelSpec(config(*specs, prioritize = true)),
         )
         assertNull(resolveDefaultModelSpec(config(*specs, prioritize = false)))
@@ -50,7 +50,7 @@ class SpecSeedTest {
     @Test
     fun without_a_default_the_first_spec_applies_when_prioritized() {
         assertEquals(
-            SpecSeed(EndpointConstants.AGENTS, "a", prioritized = true),
+            SpecSeed(EndpointConstants.AGENTS, "a", prioritized = true, spec = "a"),
             resolveDefaultModelSpec(config(agent("a"), agent("b"), prioritize = true)),
         )
         assertNull(resolveDefaultModelSpec(config(agent("a"), agent("b"), prioritize = false)))
@@ -59,7 +59,7 @@ class SpecSeedTest {
     @Test
     fun the_menu_off_acts_as_prioritized() {
         assertEquals(
-            SpecSeed(EndpointConstants.AGENTS, "a", prioritized = true),
+            SpecSeed(EndpointConstants.AGENTS, "a", prioritized = true, spec = "a"),
             resolveDefaultModelSpec(config(agent("a"), prioritize = false, modelSelect = false)),
         )
     }
@@ -68,16 +68,16 @@ class SpecSeedTest {
     fun a_soft_default_yields_unless_the_menu_is_off() {
         val specs = arrayOf(agent("a"), agent("soft", softDefault = true))
         assertEquals(
-            SpecSeed(EndpointConstants.AGENTS, "soft", prioritized = false),
+            SpecSeed(EndpointConstants.AGENTS, "soft", prioritized = false, spec = "soft"),
             resolveDefaultModelSpec(config(*specs, prioritize = false)),
         )
         // prioritize does not upgrade a soft default: upstream checks the soft branch first.
         assertEquals(
-            SpecSeed(EndpointConstants.AGENTS, "soft", prioritized = false),
+            SpecSeed(EndpointConstants.AGENTS, "soft", prioritized = false, spec = "soft"),
             resolveDefaultModelSpec(config(*specs, prioritize = true)),
         )
         assertEquals(
-            SpecSeed(EndpointConstants.AGENTS, "soft", prioritized = true),
+            SpecSeed(EndpointConstants.AGENTS, "soft", prioritized = true, spec = "soft"),
             resolveDefaultModelSpec(config(*specs, modelSelect = false)),
         )
     }
@@ -92,7 +92,7 @@ class SpecSeedTest {
     @Test
     fun an_endpoint_model_preset_maps_to_its_pair_and_an_incomplete_one_to_nothing() {
         assertEquals(
-            SpecSeed("openAI", "gpt-4.1", prioritized = true),
+            SpecSeed("openAI", "gpt-4.1", prioritized = true, spec = "fast"),
             resolveDefaultModelSpec(config(model("fast", "openAI", "gpt-4.1"), prioritize = true)),
         )
         assertNull(resolveDefaultModelSpec(config(model("broken", "openAI", null), prioritize = true)))
@@ -116,8 +116,26 @@ class SpecSeedTest {
         assertEquals(true, specs.list[0].isDefault)
         assertEquals(true, specs.list[1].softDefault)
         assertEquals(
-            SpecSeed(EndpointConstants.AGENTS, "agent_x", prioritized = true),
+            SpecSeed(EndpointConstants.AGENTS, "agent_x", prioritized = true, spec = "claude"),
             resolveDefaultModelSpec(decoded),
         )
+    }
+
+    @Test
+    fun specs_with_the_same_model_keep_distinct_names() {
+        val first = model("first", "custom", "shared-model").toSeed()
+        val second = model("second", "custom", "shared-model").toSeed()
+        assertEquals(first?.model, second?.model)
+        assertEquals("first", first?.spec)
+        assertEquals("second", second?.spec)
+    }
+
+    @Test
+    fun enforced_spec_only_servers_hide_raw_endpoints() {
+        val specs = ModelSpecs(enforce = true, addedEndpoints = listOf("agents"))
+        assertEquals(false, specs.allowsRawEndpoint("custom"))
+        assertEquals(true, specs.allowsRawEndpoint("agents"))
+        assertEquals(true, ModelSpecs().allowsRawEndpoint("custom"))
+        assertEquals(true, (null as ModelSpecs?).allowsRawEndpoint("custom"))
     }
 }

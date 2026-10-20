@@ -107,6 +107,7 @@ class PresetPromptDelegate(
             title = name,
             endpoint = state.selectedEndpoint.takeIf { it.isNotBlank() },
             model = state.selectedModel,
+            spec = state.selectedSpec,
             // ModelParameters has non-nullable typed slots seeded with the
             // "neutral" default for each field, so we can't tell "user set
             // 1.0" from "user never touched the slider". Pragmatic
@@ -172,6 +173,7 @@ class PresetPromptDelegate(
             selection = selection.copy(
                 selectedEndpoint = preset.endpoint ?: selection.selectedEndpoint,
                 selectedModel = preset.model ?: selection.selectedModel,
+                selectedSpec = preset.spec,
                 // Authoritative load: a preset represents a complete saved
                 // configuration. Merging from current parameters would let
                 // unrelated fields (e.g. a temperature from the previous

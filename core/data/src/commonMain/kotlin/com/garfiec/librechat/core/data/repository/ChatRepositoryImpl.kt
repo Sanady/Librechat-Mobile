@@ -62,6 +62,7 @@ class ChatRepositoryImpl(
         isTemporary: Boolean,
         modelParams: JsonObject?,
         quotes: List<String>?,
+        spec: String?,
     ): Flow<StreamEvent> = flow {
         // Phase 1: POST to start the chat - get back a streamId (= conversationId)
         val request = ChatPayloadBuilder.build(
@@ -72,6 +73,7 @@ class ChatRepositoryImpl(
             key = key,
             modelDisplayLabel = modelDisplayLabel,
             model = model,
+            spec = spec,
             userMessageId = userMessageId,
             parentMessageId = parentMessageId,
             agentId = agentId,

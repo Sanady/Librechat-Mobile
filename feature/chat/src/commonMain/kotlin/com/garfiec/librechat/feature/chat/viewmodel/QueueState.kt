@@ -76,6 +76,7 @@ data class QueuedMessage(
     val attachments: List<AttachedFile> = emptyList(),
     val endpoint: String,
     val model: String?,
+    val modelSpec: String? = null,
     val agentId: String?,
     val enabledTools: Set<String> = emptySet(),
     /** Selected ephemeral MCP servers — snapshotted so editing the item restores its tool state. */
@@ -181,6 +182,7 @@ fun QueuedMessage.toComposerSnapshot(): ComposerSnapshot = ComposerSnapshot(
     attachments = attachments,
     endpoint = endpoint,
     model = model,
+    modelSpec = modelSpec,
     enabledTools = enabledTools,
     mcpServerNames = mcpServerNames,
     modelParameters = modelParameters,

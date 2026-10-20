@@ -38,6 +38,8 @@ import com.garfiec.librechat.core.data.datastore.ContextBarPlacement
 import com.garfiec.librechat.core.data.datastore.StarredModelsDisplay
 import com.garfiec.librechat.core.model.Agent
 import com.garfiec.librechat.core.model.EndpointConfig
+import com.garfiec.librechat.core.model.config.ModelSpec
+import com.garfiec.librechat.core.model.config.ModelSpecs
 import com.garfiec.librechat.core.model.endpoint.KeyState
 import com.garfiec.librechat.core.ui.components.AdaptiveModalBottomSheet
 import com.garfiec.librechat.core.ui.components.LowProfileDragHandle
@@ -103,6 +105,9 @@ data class ModelSelectorPageParams(
     val selectedEndpoint: String?,
     val selectedModel: String?,
     val onModelSelect: (endpoint: String, model: String) -> Unit,
+    val modelSpecs: ModelSpecs? = null,
+    val selectedSpec: String? = null,
+    val onSpecSelect: (ModelSpec) -> Unit = {},
     val onSetApiKey: (endpointName: String) -> Unit,
     /** Fired on each surfacing; hosts route it to `ChatViewModel.prepareModelSelector()`. */
     val onSurfaced: () -> Unit = {},
@@ -259,6 +264,12 @@ fun ChatOptionsBottomSheet(
                         agents = selector.agents,
                         selectedEndpoint = selector.selectedEndpoint,
                         selectedModel = selector.selectedModel,
+                        selectedSpec = selector.selectedSpec,
+                        modelSpecs = selector.modelSpecs,
+                        onSpecSelect = { spec ->
+                            selector.onSpecSelect(spec)
+                            goTo(ChatOptionsPage.Options)
+                        },
                         onModelSelect = { endpoint, model ->
                             selector.onModelSelect(endpoint, model)
                             goTo(ChatOptionsPage.Options)
