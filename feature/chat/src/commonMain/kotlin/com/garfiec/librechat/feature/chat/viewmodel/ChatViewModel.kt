@@ -57,10 +57,10 @@ import com.garfiec.librechat.feature.chat.components.PausePanelAutoAdvance
 import com.garfiec.librechat.feature.chat.model.PresetDisplayData
 import com.garfiec.librechat.feature.chat.model.PromptMentionDisplayData
 import com.garfiec.librechat.feature.chat.util.AskAnswerDraft
-import com.garfiec.librechat.feature.chat.util.NEW_CHAT_DRAFT_KEY
 import com.garfiec.librechat.feature.chat.util.ToolDecisionDraft
 import com.garfiec.librechat.feature.chat.util.buildActiveMessagePath
 import com.garfiec.librechat.feature.chat.util.extractBranchMedia
+import com.garfiec.librechat.feature.chat.util.newChatDraftKey
 import com.garfiec.librechat.feature.chat.util.serializeMessageForClipboard
 import com.garfiec.librechat.feature.chat.util.withAttachmentSources
 import com.garfiec.librechat.feature.chat.viewmodel.delegate.AttachmentPreviewDelegate
@@ -131,6 +131,8 @@ class ChatViewModel(
     initialHighlightQuery: String? = null,
     /** The hit matched in the target's reasoning, so the jump lands on a match there. */
     initialTargetInReasoning: Boolean = false,
+    /** Project a new chat started from a project is filed into (null for an ordinary new chat). */
+    initialChatProjectId: String? = null,
     private val agentRepository: AgentRepository,
     private val chatRepository: ChatRepository,
     private val messageRepository: MessageRepository,
@@ -211,6 +213,11 @@ class ChatViewModel(
 
     /** Fires when a requested message isn't in the chat, for a "Message not found" snackbar. */
     val messageNotFound: Flow<Unit> = jumpDelegate.notFound
+
+    // Channel-backed one-shot signal: a send arrived during Compare setup and was held. Surfaced as
+    // a snackbar.
+    private val _sendHeldForCompareSetup = Channel<Unit>(Channel.CONFLATED)
+    val sendHeldForCompareSetup: Flow<Unit> = _sendHeldForCompareSetup.receiveAsFlow()
     val jumpBranchSwitched: Flow<BranchSwitch> = jumpDelegate.branchSwitched
     private val conversationActionsDelegate =
         ConversationActionsDelegate(ConversationActionsHandle(stateHandle), conversationRepository, shareRepository)
@@ -236,6 +243,7 @@ class ChatViewModel(
     private val subagentTraceDelegate = SubagentTraceDelegate(SubagentHandle(stateHandle), json)
     private val attachmentPreviewDelegate =
         AttachmentPreviewDelegate(AttachmentPreviewHandle(stateHandle), fileRepository)
+    private val newChatDraftKey = newChatDraftKey(initialChatProjectId)
     private val completionDelegate = SendCompletionDelegate(
         handle = SendCompletionHandle(stateHandle),
         conversationRepository = conversationRepository,
@@ -246,6 +254,7 @@ class ChatViewModel(
         tts = ttsDelegate,
         selectionHandoff = selectionHandoff,
         reloadConversation = { id -> conversationLoadDelegate.loadConversation(id) },
+        newChatDraftKey = newChatDraftKey,
     )
 
     // Channel-backed one-shot signal: N queued follow-ups were dropped on drain because they were
@@ -457,6 +466,7 @@ class ChatViewModel(
 
     private val conversationLoadDelegate = ConversationLoadDelegate(
         handle = ConversationLoadHandle(stateHandle),
+        newChatDraftKey = newChatDraftKey,
         messageRepository = messageRepository,
         conversationRepository = conversationRepository,
         draftRepository = draftRepository,
@@ -586,6 +596,8 @@ class ChatViewModel(
         launchStream = streamingManager::launchStream,
         onComparisonSendStart = comparisonDelegate::onSendStart,
         buildAddedConvo = comparisonDelegate::buildAddedConvo,
+        chatProjectId = initialChatProjectId,
+        newChatDraftKey = newChatDraftKey,
     )
 
     private val queueOrchestrationDelegate = QueueOrchestrationDelegate(
@@ -608,7 +620,7 @@ class ChatViewModel(
         streamingManager = streamingManager,
         requestBuilder = requestBuilder,
         getMessageText = ::getMessageText,
-        runWhenSendReady = { action -> sendReadinessDelegate.runWhenSendReady(action) },
+        runWhenSendReady = sendReadinessDelegate::runWhenSendReady,
     )
 
     /** True when this ViewModel was opened for a brand-new chat (no conversationId from navigation). */
@@ -694,21 +706,22 @@ class ChatViewModel(
             // For new chats, mark conversationModelLoaded so refilterModels
             // doesn't wait for a conversation model that will never arrive.
             modelDelegate.conversationModelLoaded = true
-            conversationLoadDelegate.restoreDraft(NEW_CHAT_DRAFT_KEY)
+            conversationLoadDelegate.restoreDraft(newChatDraftKey)
         }
 
         // Content shared in from another app, addressed to this chat by the navigation layer.
         // Covers both a share that launched the app (staged before this screen composed, drained
         // on subscribe) and one arriving while this ViewModel is already on screen.
+        val handoffKey = chatHandoffKey(initialConversationId, initialChatProjectId)
         viewModelScope.launch {
-            shareConsumer.sharesFor(initialConversationId).collect(::applyShare)
+            shareConsumer.sharesFor(handoffKey).collect(::applyShare)
         }
 
         // Collect server-file picker results routed to this conversation's own channel
         // (keyed by id; null for the NewChat landing). Consumed here in common code rather
         // than per-platform in the screen — mirroring how NewChatSelectionHandoff is wired.
         viewModelScope.launch {
-            serverFileSelectionHandoff.selectionsFor(initialConversationId).collect { files ->
+            serverFileSelectionHandoff.selectionsFor(handoffKey).collect { files ->
                 uploadIntakeDelegate.attachServerFiles(files)
             }
         }
@@ -915,7 +928,7 @@ class ChatViewModel(
         // While editing a queued item the composer holds that item, not the persisted draft —
         // don't overwrite the on-disk new-message draft (it's restored on commit/cancel).
         if (_uiState.value.isEditingQueued) return
-        val draftKey = _uiState.value.conversationId ?: NEW_CHAT_DRAFT_KEY
+        val draftKey = _uiState.value.conversationId ?: newChatDraftKey
         viewModelScope.launch {
             draftRepository.saveDraft(draftKey, text)
         }
@@ -960,6 +973,12 @@ class ChatViewModel(
             return
         }
         if (_uiState.value.isStreaming) return
+        // The composer's Send is disabled through Compare setup, but voice auto-send arrives here
+        // without it: keep the text and say why it didn't go.
+        if (!_uiState.value.canStartRun) {
+            _sendHeldForCompareSetup.trySend(Unit)
+            return
+        }
         val text = _uiState.value.inputText.trim()
         uploadIntakeDelegate.withUploadGate(text) {
             sendReadinessDelegate.runWhenSendReady { sendDispatchDelegate.sendNow(it) }
@@ -1264,6 +1283,9 @@ class ChatViewModel(
         attachmentPreviewDelegate.reset()
         // The landing now stands for the next new chat, which opens on the server's spec again.
         modelDelegate.rearmModelSpecDefault()
+        // The reset below ends any Compare setup without Cancel or Start, so nothing would release
+        // its hold; the queue it held is cleared with it.
+        queueOrchestrationDelegate.clearCompareSetupHold()
         _uiState.update { current ->
             ChatUiState(
                 selection = ModelSelectionState(
@@ -1520,11 +1542,40 @@ class ChatViewModel(
     fun onSpecSelected(spec: ModelSpec) = modelDelegate.onSpecSelected(spec)
 
     fun onModelSelected(endpoint: String, model: String) = modelDelegate.onModelSelected(endpoint, model)
-    fun toggleComparison() = comparisonDelegate.toggleComparison()
+    fun beginComparisonSetup() {
+        comparisonDelegate.beginComparisonSetup()
+        // Setup opens a model list (sheet or pane), so it takes the selector's self-heals.
+        prepareModelSelector()
+    }
+
+    fun cancelComparisonSetup() {
+        comparisonDelegate.cancelComparisonSetup()
+        // Cancel means a held follow-up goes to the chat's model alone. Its send builds the request
+        // only once the gate is ready, which can be later, so restoring a held comparison now could
+        // still turn it into a two-model send. When one is on its way, the old comparison stays off
+        // (reopening the chat restores it).
+        val followUpOwed = queueOrchestrationDelegate.releaseCompareSetupHold()
+        conversationLoadDelegate.releaseRehydrateHeldForSetup(started = followUpOwed)
+    }
+
+    /**
+     * Starts comparing against [endpoint]/[model], first applying [primary] (a changed A, as
+     * endpoint to model) as the chat's own model. Refused as a whole mid-reply (see
+     * ComparisonModeDelegate.startComparison), so a refused Start never applies A alone.
+     */
+    fun startComparison(endpoint: String, model: String, primary: Pair<String, String>? = null) {
+        if (_uiState.value.isStreaming) return
+        primary?.let { (primaryEndpoint, primaryModel) -> onModelSelected(primaryEndpoint, primaryModel) }
+        comparisonDelegate.startComparison(endpoint, model)
+        if (!_uiState.value.comparisonState.isEnabled) return
+        conversationLoadDelegate.releaseRehydrateHeldForSetup(started = true)
+        queueOrchestrationDelegate.releaseCompareSetupHold()
+    }
+
+    fun stopComparison() = comparisonDelegate.stopComparison()
     fun setSecondarySpec(spec: ModelSpec) = comparisonDelegate.setSecondarySpec(spec)
 
     fun setSecondaryModel(endpoint: String, model: String) = comparisonDelegate.setSecondaryModel(endpoint, model)
-    fun getSecondaryModelDisplayName(): String? = comparisonDelegate.getSecondaryModelDisplayName()
     fun toggleMcpServer(serverName: String) = modelDelegate.toggleMcpServer(serverName)
     fun toggleTool(toolName: String) = modelDelegate.toggleTool(toolName)
     fun updateModelParameters(parameters: ModelParameters) = modelDelegate.updateModelParameters(parameters)

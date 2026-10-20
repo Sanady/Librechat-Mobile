@@ -40,6 +40,7 @@ object ChatPayloadBuilder {
         isTemporary: Boolean = false,
         quotes: List<String>? = null,
         spec: String? = null,
+        chatProjectId: String? = null,
     ): ChatRequest {
         val resolvedParentMessageId = parentMessageId ?: NO_PARENT
 
@@ -87,6 +88,7 @@ object ChatPayloadBuilder {
             // Minted here (once per send) and encoded once by `toBody`, so it stays byte-stable
             // across any transport-level retry of the same POST. Additive; ignored if unclaimed.
             clientRequestId = Uuid.random().toString(),
+            chatProjectId = chatProjectId,
         )
     }
 

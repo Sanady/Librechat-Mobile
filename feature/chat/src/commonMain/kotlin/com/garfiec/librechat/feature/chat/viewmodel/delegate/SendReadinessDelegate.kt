@@ -45,6 +45,12 @@ class SendReadinessDelegate(
      */
     fun runWhenSendReady(onRefused: () -> Unit, action: () -> Unit) {
         val current = handle.state
+        // Compare setup: nothing starts a run until it ends (see ChatUiState.canStartRun). The
+        // controls already show why, so there is nothing to surface.
+        if (!current.canStartRun) {
+            onRefused()
+            return
+        }
         preflightSendBlockReason(current)?.let { reason ->
             surfaceModelSheet(reason)
             onRefused()
@@ -56,7 +62,9 @@ class SendReadinessDelegate(
         }
         handle.scope.launch {
             if (awaitSendReady()) {
-                action()
+                // A setup that began during the wait refuses it too; the caller's onRefused puts
+                // back whatever it was holding.
+                if (handle.state.canStartRun) action() else onRefused()
             } else {
                 surfaceModelSheet(sendReadinessTimeoutReason(handle.state))
                 onRefused()

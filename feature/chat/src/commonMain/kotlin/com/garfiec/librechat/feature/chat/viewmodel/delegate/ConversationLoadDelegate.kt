@@ -58,12 +58,28 @@ class ConversationLoadDelegate(
      * messages still list as pending. Called on every settled emission; the delegate dedupes.
      */
     private val onMessagesSettled: (List<MessageNode>) -> Unit,
+    private val newChatDraftKey: String = NEW_CHAT_DRAFT_KEY,
 ) {
     private var roomObserverJob: Job? = null
+
+    /**
+     * A comparison tail that settled while Compare setup was open. Rehydrating then would replace
+     * the setup, so it waits: Cancel restores it ([releaseRehydrateHeldForSetup]), Start replaces it.
+     */
+    private var rehydrateHeldForSetup: Message? = null
+
+    /** Compare setup ended. [started] is false for Cancel, which restores a held comparison. */
+    fun releaseRehydrateHeldForSetup(started: Boolean) {
+        val tail = rehydrateHeldForSetup ?: return
+        rehydrateHeldForSetup = null
+        val state = handle.state
+        if (!started && !state.isStreaming && !state.comparisonState.isEnabled) rehydrateComparison(tail)
+    }
 
     fun stopObserving() {
         roomObserverJob?.cancel()
         roomObserverJob = null
+        rehydrateHeldForSetup = null
     }
 
     /**
@@ -133,6 +149,7 @@ class ConversationLoadDelegate(
         // non-empty emission (the authoritative tail) — so a later Room re-emit can't
         // re-enable comparison after the user has toggled it off for the session.
         var autoRehydrateHandled = false
+        rehydrateHeldForSetup = null
         var pendingUnsavedTurn = unsavedTurn
         roomObserverJob = handle.scope.launch {
             // A flow, not a plain flag: it is a `combine` input below, so settling re-runs the
@@ -250,7 +267,11 @@ class ConversationLoadDelegate(
                         if (!state.isStreaming && !state.comparisonState.isEnabled &&
                             tail != null && hasParallelParts(tail)
                         ) {
-                            rehydrateComparison(tail)
+                            if (state.comparisonState.isSettingUp) {
+                                rehydrateHeldForSetup = tail
+                            } else {
+                                rehydrateComparison(tail)
+                            }
                         }
                     }
                 }
@@ -274,14 +295,14 @@ class ConversationLoadDelegate(
             }
         }
         if (handle.state.inputText != text) return
-        val draftKey = handle.state.conversationId ?: NEW_CHAT_DRAFT_KEY
+        val draftKey = handle.state.conversationId ?: newChatDraftKey
         handle.scope.launch {
             draftRepository.saveDraft(draftKey, text)
         }
     }
 
     /**
-     * Restores a previously saved draft for the given key (conversation ID or [NEW_CHAT_DRAFT_KEY]).
+     * Restores a previously saved draft for the given key (conversation ID or the landing's key).
      */
     fun restoreDraft(draftKey: String) {
         handle.scope.launch {

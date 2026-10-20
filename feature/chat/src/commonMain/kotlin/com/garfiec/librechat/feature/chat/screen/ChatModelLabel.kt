@@ -8,6 +8,7 @@ import com.garfiec.librechat.core.model.config.ModelSpecs
 import com.garfiec.librechat.core.model.config.labelFor
 import com.garfiec.librechat.feature.chat.resources.Res
 import com.garfiec.librechat.feature.chat.resources.chat_agent_fallback_label
+import com.garfiec.librechat.feature.chat.resources.select_model
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -79,4 +80,19 @@ internal fun chatModelLabel(
         selectedModel
     }
     return ChatModelLabel(agentName = agentName, displayModel = displayModel)
+}
+
+/**
+ * A Compare lane's label: [chatModelLabel]'s, or "Select model" for a lane with no model. Every
+ * Compare surface (composer, panes, selectors, options sheet) names a lane through this, so the
+ * same lane never reads two ways.
+ */
+@Composable
+internal fun comparisonLaneLabel(endpoint: String?, model: String?, agents: List<Agent>): String {
+    val agentFallbackLabel = stringResource(Res.string.chat_agent_fallback_label)
+    val selectModel = stringResource(Res.string.select_model)
+    // No model means not chosen, whatever the endpoint: chatModelLabel would name an agents lane
+    // "Agent" with no agent picked.
+    if (model == null) return selectModel
+    return chatModelLabel(endpoint, model, agents, agentFallbackLabel).displayModel ?: selectModel
 }

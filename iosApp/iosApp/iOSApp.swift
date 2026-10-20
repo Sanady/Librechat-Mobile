@@ -11,6 +11,14 @@ struct iOSApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // Before Koin, on this same thread: starting Koin eagerly creates the prefetch schedule
+        // coordinator, whose collector submits BGTask requests from a background dispatcher as soon
+        // as a signed-in account resolves. Submitting an identifier with no launch handler is an
+        // uncatchable NSInternalInconsistencyException, and `didFinishLaunching` runs only after
+        // this initializer returns, so registering there lost the race on nearly every cold launch.
+        // Here rather than in the scene delegate: a launch triggered by a background task connects
+        // no scene at all, but it still constructs the App.
+        PrefetchBackgroundTasks.register()
         // Initialize Koin DI — must happen before any KMP code is used
         IosKoinHelperKt.startIosKoin()
     }
@@ -37,10 +45,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        // Here rather than in the scene delegate: a launch triggered by a background task connects no
-        // scene at all, so `willConnectTo` never fires and the feature would run once and then have
-        // nothing left to re-register it.
-        PrefetchBackgroundTasks.register()
+        // The BGTask launch handlers are registered in `iOSApp.init()`, which runs before this and
+        // before Koin can submit anything. Registering again here would throw: iOS accepts each
+        // identifier once per process.
         return true
     }
 
