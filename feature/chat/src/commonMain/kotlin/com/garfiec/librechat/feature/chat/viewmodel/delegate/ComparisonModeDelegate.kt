@@ -6,12 +6,14 @@ import com.garfiec.librechat.core.common.result.Result
 import com.garfiec.librechat.core.data.repository.MessageRepository
 import com.garfiec.librechat.core.model.Message
 import com.garfiec.librechat.core.model.StreamEvent
+import com.garfiec.librechat.core.model.config.ModelSpec
 import com.garfiec.librechat.core.model.request.AddedConversation
 import com.garfiec.librechat.feature.chat.util.isEphemeralAgentId
 import com.garfiec.librechat.feature.chat.util.parseEphemeralAgentId
 import com.garfiec.librechat.feature.chat.util.primaryAgentId
 import com.garfiec.librechat.feature.chat.util.secondaryAgentId
 import com.garfiec.librechat.feature.chat.util.stripAgentIdSuffix
+import com.garfiec.librechat.feature.chat.util.toSeed
 import com.garfiec.librechat.feature.chat.viewmodel.ActiveToolCall
 import com.garfiec.librechat.feature.chat.viewmodel.ChatNotice
 import com.garfiec.librechat.feature.chat.viewmodel.ChatScreenState
@@ -97,12 +99,26 @@ class ComparisonModeDelegate(
         handle.update { comparisonState = ComparisonState() }
     }
 
+    /** Sets the secondary selection to a named spec, carrying its name with the comparison's sends. */
+    fun setSecondarySpec(spec: ModelSpec) {
+        val seed = spec.toSeed() ?: return
+        val comparison = handle.state.comparisonState
+        if (!comparison.isEnabled) return
+        handle.update {
+            comparisonState = comparison.copy(
+                secondaryEndpoint = seed.endpoint,
+                secondaryModel = seed.model,
+                secondarySpec = seed.spec,
+            )
+        }
+    }
+
     /** Updates the secondary model selection for comparison mode. */
     fun setSecondaryModel(endpoint: String, model: String) {
         val comparison = handle.state.comparisonState
         if (!comparison.isEnabled) return
         handle.update {
-            comparisonState = comparison.copy(secondaryEndpoint = endpoint, secondaryModel = model)
+            comparisonState = comparison.copy(secondaryEndpoint = endpoint, secondaryModel = model, secondarySpec = null)
         }
     }
 
@@ -135,6 +151,7 @@ class ComparisonModeDelegate(
             key = dispatch.key,
             agentId = if (isAgent) model else null,
             model = if (isAgent) null else model,
+            spec = comparison.secondarySpec,
         )
     }
 

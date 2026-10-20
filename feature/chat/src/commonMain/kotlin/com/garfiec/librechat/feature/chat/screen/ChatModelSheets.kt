@@ -36,6 +36,8 @@ internal fun PrimaryModelSelectorSheet(
         onSelectPrimary = viewModel::onModelSelected,
         onSelectSecondary = viewModel::setSecondaryModel,
         setupPick = setupPick,
+        onSelectPrimarySpec = viewModel::onSpecSelected,
+        onSelectSecondarySpec = viewModel::setSecondarySpec,
     )
     ModelSelectorSheet(
         endpointConfigs = uiState.endpointConfigs,
@@ -43,9 +45,18 @@ internal fun PrimaryModelSelectorSheet(
         agents = uiState.agents,
         selectedEndpoint = comparison.selectedEndpoint,
         selectedModel = comparison.selectedModel,
+        // Setup stages models only, so spec rows (and the enforce filtering) show outside it.
+        modelSpecs = uiState.selection.modelSpecs.takeIf { comparison.onSpecSelect != null },
+        selectedSpec = comparison.selectedSpec,
         onModelSelect = { endpoint, model ->
             comparison.onModelSelect(endpoint, model)
             // Clear a pending snackbar for the same error so it doesn't flash behind the close.
+            viewModel.dismissError()
+            viewModel.dismissSendBlockReason()
+            viewModel.dismissModelSheet()
+        },
+        onSpecSelect = { spec ->
+            comparison.onSpecSelect?.invoke(spec)
             viewModel.dismissError()
             viewModel.dismissSendBlockReason()
             viewModel.dismissModelSheet()
@@ -94,6 +105,8 @@ internal fun SecondaryModelSelectorSheet(
         initialTarget = ComparisonLane.B,
         onSelectPrimary = viewModel::onModelSelected,
         onSelectSecondary = viewModel::setSecondaryModel,
+        onSelectPrimarySpec = viewModel::onSpecSelected,
+        onSelectSecondarySpec = viewModel::setSecondarySpec,
     )
     ModelSelectorSheet(
         endpointConfigs = uiState.endpointConfigs,
@@ -101,8 +114,15 @@ internal fun SecondaryModelSelectorSheet(
         agents = uiState.agents,
         selectedEndpoint = comparison.selectedEndpoint,
         selectedModel = comparison.selectedModel,
+        // Setup stages models only, so spec rows (and the enforce filtering) show outside it.
+        modelSpecs = uiState.selection.modelSpecs.takeIf { comparison.onSpecSelect != null },
+        selectedSpec = comparison.selectedSpec,
         onModelSelect = { endpoint, model ->
             comparison.onModelSelect(endpoint, model)
+            onDismiss()
+        },
+        onSpecSelect = { spec ->
+            comparison.onSpecSelect?.invoke(spec)
             onDismiss()
         },
         onDismiss = onDismiss,

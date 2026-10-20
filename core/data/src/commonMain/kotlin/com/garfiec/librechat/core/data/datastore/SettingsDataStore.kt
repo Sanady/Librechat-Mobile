@@ -199,6 +199,9 @@ class SettingsDataStore(
 
     val lastUsedModel: Flow<String?> = scopedString(::modelKey)
 
+    /** The model spec name of the last pick, written with the pair; null when the pick was a raw model. */
+    val lastUsedSpec: Flow<String?> = scopedString(::specKey)
+
     /**
      * The account's most-used endpoint/model pairs, ranked by send count (recency breaks ties),
      * capped to [limit]. Backs the home-screen app shortcuts / quick actions. Emits nothing while
@@ -521,11 +524,12 @@ class SettingsDataStore(
         }
     }
 
-    suspend fun setLastUsedModel(endpoint: String, model: String) {
+    suspend fun setLastUsedModel(endpoint: String, model: String, spec: String? = null) {
         val accountId = activeAccountProvider.currentAccountId()?.value ?: return
         dataStore.edit { prefs ->
             prefs[endpointKey(accountId)] = endpoint
             prefs[modelKey(accountId)] = model
+            if (spec != null) prefs[specKey(accountId)] = spec else prefs.remove(specKey(accountId))
             // Reset migration: drop the pre-keying bare entries (they'd mis-attribute A's model to B).
             prefs.remove(stringPreferencesKey(LAST_USED_ENDPOINT))
             prefs.remove(stringPreferencesKey(LAST_USED_MODEL))
@@ -547,6 +551,8 @@ class SettingsDataStore(
     private fun endpointKey(accountId: String) = accountScopedKey(accountId, LAST_USED_ENDPOINT)
 
     private fun modelKey(accountId: String) = accountScopedKey(accountId, LAST_USED_MODEL)
+
+    private fun specKey(accountId: String) = accountScopedKey(accountId, LAST_USED_SPEC)
 
     private fun usageKey(accountId: String) = accountScopedKey(accountId, MODEL_USAGE)
 
@@ -878,6 +884,7 @@ class SettingsDataStore(
         private val KEY_SELECTED_VOICE_ID = stringPreferencesKey("selected_voice_id")
         private const val LAST_USED_ENDPOINT = "last_used_endpoint"
         private const val LAST_USED_MODEL = "last_used_model"
+        private const val LAST_USED_SPEC = "last_used_spec"
         private const val MODEL_USAGE = "model_usage"
         private const val PREFETCH_LIST_REFRESHED_AT = "prefetch_list_refreshed_at"
         private const val PREFETCH_LAST_SCHEDULED_RUN = "prefetch_last_scheduled_run"

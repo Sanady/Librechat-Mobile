@@ -328,7 +328,17 @@ class ConversationLoadDelegate(
         }
         handle.scope.launch {
             val result = conversationRepository.getConversation(conversationId, originAccount = null)
-            val conversation = result.getOrNull()
+            var conversation = result.getOrNull()
+            // Rows cached before the spec column have none, and an enforced server rejects a send
+            // without it. Ask the server once per process: a conversation that has no spec there
+            // either would otherwise cost a request on every open.
+            if (conversation != null && conversation.spec == null &&
+                handle.state.selection.modelSpecs?.enforce == true &&
+                specBackfillAttempted.add(conversationId)
+            ) {
+                conversation = conversationRepository.refreshConversation(conversationId, originAccount = null)
+                    .getOrNull() ?: conversation
+            }
             if (conversation != null) {
                 handle.update { conversationTitle = conversation.title }
                 val applied = applyConversationModel(conversation)
@@ -374,6 +384,9 @@ class ConversationLoadDelegate(
         }
     }
 }
+
+/** Conversations already asked for their spec this process. Touched only on the main thread. */
+private val specBackfillAttempted = HashSet<String>()
 
 private data class MessagePathEmission(
     val messages: List<Message>,

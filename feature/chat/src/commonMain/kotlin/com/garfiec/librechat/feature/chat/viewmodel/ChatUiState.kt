@@ -101,6 +101,7 @@ data class ChatUiState(
     val forkedConversationId: String? get() = actions.forkedConversationId
     val editingMessageId: String? get() = editing.editingMessageId
     val editingText: String get() = editing.editingText
+    val selectedSpec: String? get() = selection.selectedSpec
     val selectedModel: String? get() = selection.selectedModel
     val selectedEndpoint: String get() = selection.selectedEndpoint
     val endpointConfigs: Map<String, EndpointConfig> get() = selection.endpointConfigs

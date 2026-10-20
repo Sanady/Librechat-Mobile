@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.garfiec.librechat.core.data.datastore.ChatFontSize
 import com.garfiec.librechat.core.data.datastore.LatexRenderer
+import com.garfiec.librechat.core.model.config.labelFor
 import com.garfiec.librechat.core.model.response.pickerMimeTypes
 import com.garfiec.librechat.core.ui.components.AdaptiveSnackbarHost
 import com.garfiec.librechat.core.ui.components.PdfPasswordDialog
@@ -176,6 +177,8 @@ fun ChatScreen(
         selectedEndpoint = uiState.selectedEndpoint,
         selectedModel = uiState.selectedModel,
         agents = uiState.agents,
+        selectedSpec = uiState.selectedSpec,
+        modelSpecs = uiState.selection.modelSpecs,
     )
 
     val onStartRecordingWithPermission = rememberChatStartRecording(
@@ -195,7 +198,8 @@ fun ChatScreen(
     // can be stale from before an unfold), so it is never the secondary one.
     val isSecondaryTab = uiState.comparisonState.isEnabled && activeComparisonTab == 1 && !comparisonWide
     val secondaryModelLabel = if (uiState.comparisonState.isEnabled) {
-        comparisonLaneLabel(uiState.comparisonState.secondaryEndpoint, uiState.comparisonState.secondaryModel, uiState.agents)
+        uiState.selection.modelSpecs?.labelFor(uiState.comparisonState.secondarySpec)
+            ?: comparisonLaneLabel(uiState.comparisonState.secondaryEndpoint, uiState.comparisonState.secondaryModel, uiState.agents)
     } else {
         null
     }

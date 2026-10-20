@@ -2,11 +2,44 @@ package com.garfiec.librechat.feature.conversations.drawer
 
 import com.garfiec.librechat.core.model.Conversation
 import com.garfiec.librechat.core.model.EndpointConfig
+import com.garfiec.librechat.core.model.config.ModelSpec
+import com.garfiec.librechat.core.model.config.ModelSpecs
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import kotlin.time.Instant
 
 class DrawerDisplayMappingTest {
+
+    @Test
+    fun specLabelIsDisplayedWithoutChangingTheRawModel() {
+        val convo = Conversation(conversationId = "c1", model = "internal-model", spec = "second")
+        val specs = ModelSpecs(list = listOf(
+            ModelSpec(name = "first", label = "First Assistant"),
+            ModelSpec(name = "second", label = "Second Assistant"),
+        ))
+
+        val data = convo.toDrawerDisplayData(null, emptyMap(), specs)
+
+        assertThat(data.modelLabel).isEqualTo("Second Assistant")
+        assertThat(data.model).isEqualTo("internal-model")
+    }
+
+    @Test
+    fun blankSpecLabelFallsBackToSpecName() {
+        val convo = Conversation(conversationId = "c1", model = "internal-model", spec = "curated-spec")
+        val specs = ModelSpecs(list = listOf(ModelSpec(name = "curated-spec", label = "   ")))
+
+        assertThat(convo.toDrawerDisplayData(null, emptyMap(), specs).modelLabel).isEqualTo("curated-spec")
+    }
+
+    @Test
+    fun missingOrUnknownSpecPreservesTheRawModelLabel() {
+        val specs = ModelSpecs(list = listOf(ModelSpec(name = "other", label = "Other Assistant")))
+        for (spec in listOf(null, "unknown")) {
+            val convo = Conversation(conversationId = "c1", model = "raw-model", spec = spec)
+            assertThat(convo.toDrawerDisplayData(null, emptyMap(), specs).modelLabel).isEqualTo("raw-model")
+        }
+    }
 
     @Test
     fun iconURLPrefersConversationOverEndpointConfig() {

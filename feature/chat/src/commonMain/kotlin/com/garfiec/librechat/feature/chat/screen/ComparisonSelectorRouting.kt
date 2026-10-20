@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import com.garfiec.librechat.core.model.config.ModelSpec
 import com.garfiec.librechat.feature.chat.components.ComparisonLane
 import com.garfiec.librechat.feature.chat.components.ComparisonModelLabels
 import com.garfiec.librechat.feature.chat.components.ComparisonPairHeader
@@ -22,6 +23,9 @@ internal class ComparisonSelectorRouting(
     val onModelSelect: (endpoint: String, model: String) -> Unit,
     /** The A/B pair above the list; null outside Compare. */
     val header: (@Composable () -> Unit)?,
+    /** The edited lane's spec, and where a spec pick goes. Null during setup, which stages models only. */
+    val selectedSpec: String? = null,
+    val onSpecSelect: ((ModelSpec) -> Unit)? = null,
 )
 
 /** Both compared models' labels, for the options sheet's Model row; null when not comparing. */
@@ -49,6 +53,8 @@ internal fun rememberComparisonSelectorRouting(
     onSelectPrimary: (endpoint: String, model: String) -> Unit,
     onSelectSecondary: (endpoint: String, model: String) -> Unit,
     setupPick: CompareSetupPick? = null,
+    onSelectPrimarySpec: ((ModelSpec) -> Unit)? = null,
+    onSelectSecondarySpec: ((ModelSpec) -> Unit)? = null,
 ): ComparisonSelectorRouting {
     var target by remember(initialTarget) { mutableStateOf(initialTarget) }
     val comparison = uiState.comparisonState
@@ -93,6 +99,17 @@ internal fun rememberComparisonSelectorRouting(
     // options sheet's ModelSelectorPageParams unequal on each chrome emission and redraw the page.
     val latestSelect by rememberUpdatedState(if (editingA) lanes.selectA else lanes.selectB)
     val onModelSelect = remember { { endpoint: String, model: String -> latestSelect(endpoint, model) } }
+    val selectedSpec = when {
+        staging != null -> null
+        editingA -> uiState.selectedSpec
+        else -> comparison.secondarySpec
+    }
+    val specSelect = if (staging != null) null else if (editingA) onSelectPrimarySpec else onSelectSecondarySpec
+    val latestSpecSelect by rememberUpdatedState(specSelect)
+    val hasSpecSelect = specSelect != null
+    val onSpecSelect = remember(hasSpecSelect) {
+        if (hasSpecSelect) { spec: ModelSpec -> latestSpecSelect?.invoke(spec) ?: Unit } else null
+    }
     val primaryLabel = comparisonLaneLabel(lanes.aEndpoint, lanes.aModel, uiState.agents)
     val secondaryLabel = comparisonLaneLabel(lanes.bEndpoint, lanes.bModel, uiState.agents)
         .takeIf { lanes.bModel != null }
@@ -113,8 +130,8 @@ internal fun rememberComparisonSelectorRouting(
                 }
             }
         }
-    return remember(selectedEndpoint, selectedModel, header) {
-        ComparisonSelectorRouting(selectedEndpoint, selectedModel, onModelSelect, header)
+    return remember(selectedEndpoint, selectedModel, header, selectedSpec, onSpecSelect) {
+        ComparisonSelectorRouting(selectedEndpoint, selectedModel, onModelSelect, header, selectedSpec, onSpecSelect)
     }
 }
 

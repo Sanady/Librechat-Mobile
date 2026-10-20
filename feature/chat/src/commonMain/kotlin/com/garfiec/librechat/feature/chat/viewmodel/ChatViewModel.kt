@@ -40,6 +40,7 @@ import com.garfiec.librechat.core.model.Attachment
 import com.garfiec.librechat.core.model.Message
 import com.garfiec.librechat.core.model.MinimalFeedback
 import com.garfiec.librechat.core.model.Preset
+import com.garfiec.librechat.core.model.config.ModelSpec
 import com.garfiec.librechat.core.model.config.isTraceViewerEnabled
 import com.garfiec.librechat.core.model.error.UserKeyError
 import com.garfiec.librechat.core.model.media.resolveAvatarUrl
@@ -670,7 +671,7 @@ class ChatViewModel(
                     tag = "ModelSel",
                     attrs = mapOf("endpoint" to handoff.endpoint, "model" to (handoff.model ?: "null")),
                 ) { "handoff applied for $conversationId" }
-                modelDelegate.applyResolvedConversationModel(handoff.endpoint, handoff.model)
+                modelDelegate.applyResolvedConversationModel(handoff.endpoint, handoff.model, handoff.spec)
             }
             // Seed the optimistic user message the landing VM sent, so it stays visible while the
             // resumed stream runs. The server doesn't persist the request message until the reply
@@ -1290,6 +1291,8 @@ class ChatViewModel(
                 selection = ModelSelectionState(
                     selectedEndpoint = current.selectedEndpoint,
                     selectedModel = current.selectedModel,
+                    selectedSpec = current.selectedSpec,
+                    modelSpecs = current.selection.modelSpecs,
                     availableModels = current.availableModels,
                     endpointConfigs = current.endpointConfigs,
                     agents = current.agents,
@@ -1536,6 +1539,8 @@ class ChatViewModel(
     fun toggleModelFavorite(endpoint: String, model: String) = favoritesDelegate.toggleModel(endpoint, model)
 
     // Model selection and comparison
+    fun onSpecSelected(spec: ModelSpec) = modelDelegate.onSpecSelected(spec)
+
     fun onModelSelected(endpoint: String, model: String) = modelDelegate.onModelSelected(endpoint, model)
     fun beginComparisonSetup() {
         comparisonDelegate.beginComparisonSetup()
@@ -1568,6 +1573,8 @@ class ChatViewModel(
     }
 
     fun stopComparison() = comparisonDelegate.stopComparison()
+    fun setSecondarySpec(spec: ModelSpec) = comparisonDelegate.setSecondarySpec(spec)
+
     fun setSecondaryModel(endpoint: String, model: String) = comparisonDelegate.setSecondaryModel(endpoint, model)
     fun toggleMcpServer(serverName: String) = modelDelegate.toggleMcpServer(serverName)
     fun toggleTool(toolName: String) = modelDelegate.toggleTool(toolName)

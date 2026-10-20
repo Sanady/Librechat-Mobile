@@ -74,4 +74,11 @@ class NewChatSelectionHandoffTest {
             NewChatSelectionHandoff.Selection("conv_1", "openAI", "gpt-4o", optimistic),
         )
     }
+
+    @Test
+    fun namedSpecSurvivesNavigationHandoff() {
+        val handoff = NewChatSelectionHandoff()
+        handoff.put("conversation", "custom", "shared-model", spec = "curated-spec")
+        assertThat(handoff.take("conversation")?.spec).isEqualTo("curated-spec")
+    }
 }

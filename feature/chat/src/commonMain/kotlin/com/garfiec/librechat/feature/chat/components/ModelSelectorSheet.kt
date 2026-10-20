@@ -47,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -54,6 +55,8 @@ import com.garfiec.librechat.core.common.EndpointConstants
 import com.garfiec.librechat.core.data.datastore.StarredModelsDisplay
 import com.garfiec.librechat.core.model.Agent
 import com.garfiec.librechat.core.model.EndpointConfig
+import com.garfiec.librechat.core.model.config.ModelSpec
+import com.garfiec.librechat.core.model.config.ModelSpecs
 import com.garfiec.librechat.core.model.endpoint.KeyState
 import com.garfiec.librechat.core.model.media.resolveAvatarUrl
 import com.garfiec.librechat.core.ui.components.AdaptiveDivider
@@ -72,8 +75,11 @@ import com.garfiec.librechat.core.ui.components.rememberListDragSelection
 import com.garfiec.librechat.feature.chat.resources.*
 import com.garfiec.librechat.feature.chat.resources.Res
 import com.garfiec.librechat.feature.chat.util.blocksSelection
+import com.garfiec.librechat.feature.chat.util.requiresSpec
 import com.garfiec.librechat.feature.chat.util.searchByName
+import com.garfiec.librechat.feature.chat.util.showsRawEndpoint
 import com.garfiec.librechat.feature.chat.util.starredModels
+import com.garfiec.librechat.feature.chat.util.toSeed
 import com.garfiec.librechat.feature.chat.viewmodel.delegate.filterModelsByEndpoint
 import org.jetbrains.compose.resources.stringResource
 
@@ -103,6 +109,9 @@ fun ModelSelectorSheet(
     onModelSelect: (endpoint: String, model: String) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    modelSpecs: ModelSpecs? = null,
+    selectedSpec: String? = null,
+    onSpecSelect: (ModelSpec) -> Unit = {},
     serverUrl: String = "",
     errorMessage: String? = null,
     onErrorDismiss: () -> Unit = {},
@@ -146,6 +155,9 @@ fun ModelSelectorSheet(
             selectedEndpoint = selectedEndpoint,
             selectedModel = selectedModel,
             onModelSelect = onModelSelect,
+            modelSpecs = modelSpecs,
+            selectedSpec = selectedSpec,
+            onSpecSelect = onSpecSelect,
             onSetApiKey = onSetApiKey,
             modifier = Modifier.fillMaxSize(),
             serverUrl = serverUrl,
@@ -181,6 +193,9 @@ fun ModelSelectorSheetContent(
      */
     onSetApiKey: (endpointName: String) -> Unit,
     modifier: Modifier = Modifier,
+    modelSpecs: ModelSpecs? = null,
+    selectedSpec: String? = null,
+    onSpecSelect: (ModelSpec) -> Unit = {},
     serverUrl: String = "",
     errorMessage: String? = null,
     onErrorDismiss: () -> Unit = {},
@@ -213,14 +228,20 @@ fun ModelSelectorSheetContent(
     val isSearching = searchQuery.isNotBlank()
 
     // Filter to only show models for endpoints the user's server has enabled
-    val filteredByEndpoint = remember(availableModels, endpointConfigs) {
-        filterModelsByEndpoint(availableModels, endpointConfigs)
+    val filteredByEndpoint = remember(availableModels, endpointConfigs, modelSpecs) {
+        filterModelsByEndpoint(availableModels, endpointConfigs).filterKeys { endpoint ->
+            modelSpecs.showsRawEndpoint(endpoint)
+        }
     }
+    // Raw rows the server would reject still show, greyed, where web lists them.
+    val rawSelectable = !modelSpecs.requiresSpec
+    // A spec selection checks only its own row, not the raw model it runs on.
+    val rawSelectedModel = selectedModel.takeIf { selectedSpec == null }
 
     // Filter agents by search query (fuzzy matching), sorted by score when searching.
     // When not searching, pinned agents (v0.8.5+) sort to the top of the list.
-    val filteredAgents = remember(agents, searchQuery, favoriteAgentIds) {
-        val agents = agents.distinctBy { it.id }
+    val filteredAgents = remember(agents, searchQuery, favoriteAgentIds, modelSpecs) {
+        val agents = agents.distinctBy { it.id }.takeIf { modelSpecs.showsRawEndpoint(EndpointConstants.AGENTS) }.orEmpty()
         val base = if (!isSearching) {
             agents
         } else {
@@ -239,7 +260,9 @@ fun ModelSelectorSheetContent(
     val showStarred = !isSearching && starredDisplay != StarredModelsDisplay.OFF
     // favoriteAgentIds / favoriteModelKeys are LinkedHashSets from FavoritesDelegate.publish,
     // so iterating them preserves the server-side pin order.
-    val agentsById = remember(agents) { agents.associateBy { it.id } }
+    val agentsById = remember(agents, modelSpecs) {
+        agents.takeIf { modelSpecs.showsRawEndpoint(EndpointConstants.AGENTS) }.orEmpty().associateBy { it.id }
+    }
     val starredAgents = remember(agentsById, favoriteAgentIds, showStarred) {
         if (!showStarred) emptyList() else favoriteAgentIds.mapNotNull { agentsById[it] }
     }
@@ -303,6 +326,35 @@ fun ModelSelectorSheetContent(
                 .weight(1f)
                 .listDragSelection(dragSelection, holdOnly = true),
         ) {
+            val specs = modelSpecs?.list.orEmpty().filter { it.showInMenu != false && it.toSeed() != null }
+            items(
+                items = if (isSearching) searchByName(specs, searchQuery) { it.label ?: it.name } else specs,
+                key = { "spec:${it.name}" },
+                contentType = { "spec" },
+            ) { spec ->
+                val endpoint = spec.toSeed()?.endpoint
+                val keyState = endpointKeyStates[endpoint]
+                val keyRequired = keyState == KeyState.Unset || keyState == KeyState.Expired
+                SpecListItem(
+                    spec = spec,
+                    endpoint = endpoint,
+                    isSelected = selectedSpec == spec.name,
+                    serverUrl = serverUrl,
+                    onClick = { if (keyRequired && endpoint != null) onSetApiKey(endpoint) else onSpecSelect(spec) },
+                    dragSelection = dragSelection,
+                )
+            }
+            // Above the Starred section too: that is the first raw row on screen.
+            if (!rawSelectable && (hasStarred || filteredAgents.isNotEmpty() || filteredByEndpoint.isNotEmpty())) {
+                item(key = "note:spec-only", contentType = "note") {
+                    Text(
+                        text = stringResource(Res.string.model_selector_spec_only_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+            }
             // Optional "Starred" section at the very top (mobile-only). Starred items
             // are duplicated here — they still render in their own groups below.
             if (showStarred && hasStarred) {
@@ -339,7 +391,8 @@ fun ModelSelectorSheetContent(
                     items(starredAgents, key = { "starred:agent:${it.id}" }, contentType = { "agent" }) { agent ->
                         AgentListItem(
                             agent = agent,
-                            isSelected = selectedEndpoint == EndpointConstants.AGENTS && agent.id == selectedModel,
+                            isSelected = selectedEndpoint == EndpointConstants.AGENTS && agent.id == rawSelectedModel,
+                            enabled = rawSelectable,
                             serverUrl = serverUrl,
                             onClick = { onModelSelect(EndpointConstants.AGENTS, agent.id) },
                             isFavorite = true,
@@ -355,7 +408,8 @@ fun ModelSelectorSheetContent(
                     ) { (endpoint, model) ->
                         ModelListItem(
                             model = model,
-                            isSelected = endpoint == selectedEndpoint && model == selectedModel,
+                            isSelected = endpoint == selectedEndpoint && model == rawSelectedModel,
+                            enabled = rawSelectable,
                             isFavorite = true,
                             onClick = { onModelSelect(endpoint, model) },
                             onToggleFavorite = onToggleModelFavorite?.let { toggle -> { toggle(endpoint, model) } },
@@ -389,7 +443,8 @@ fun ModelSelectorSheetContent(
                     items(filteredAgents, key = { "agent:${it.id}" }, contentType = { "agent" }) { agent ->
                         AgentListItem(
                             agent = agent,
-                            isSelected = selectedEndpoint == EndpointConstants.AGENTS && agent.id == selectedModel,
+                            isSelected = selectedEndpoint == EndpointConstants.AGENTS && agent.id == rawSelectedModel,
+                            enabled = rawSelectable,
                             serverUrl = serverUrl,
                             onClick = { onModelSelect(EndpointConstants.AGENTS, agent.id) },
                             isFavorite = agent.id in favoriteAgentIds,
@@ -436,7 +491,8 @@ fun ModelSelectorSheetContent(
                         items(filteredModels, key = { "model:$endpointName::$it" }, contentType = { "model" }) { model ->
                             ModelListItem(
                                 model = model,
-                                isSelected = endpointName == selectedEndpoint && model == selectedModel,
+                                isSelected = endpointName == selectedEndpoint && model == rawSelectedModel,
+                                enabled = rawSelectable,
                                 isFavorite = "$endpointName::$model" in favoriteModelKeys,
                                 onClick = { onModelSelect(endpointName, model) },
                                 onToggleFavorite = onToggleModelFavorite?.let { toggle -> { toggle(endpointName, model) } },
@@ -576,11 +632,12 @@ private fun LazyItemScope.ModelListItem(
     onToggleFavorite: (() -> Unit)?,
     dragSelection: ListDragSelection,
     verticalPadding: Dp = ListItemVerticalPadding,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .dragSelectRow(dragSelection, onClick = onClick)
+            .then(if (enabled) Modifier.dragSelectRow(dragSelection, onClick = onClick) else Modifier.alpha(DisabledAlpha))
             .padding(vertical = verticalPadding, horizontal = 16.dp)
             .animateItem(),
         verticalAlignment = Alignment.CenterVertically,
@@ -598,7 +655,7 @@ private fun LazyItemScope.ModelListItem(
                 tint = MaterialTheme.colorScheme.primary,
             )
         }
-        if (onToggleFavorite != null) {
+        if (onToggleFavorite != null && enabled) {
             Spacer(modifier = Modifier.width(4.dp))
             FavoriteStarButton(
                 isFavorite = isFavorite,
@@ -619,6 +676,7 @@ private fun LazyItemScope.AgentListItem(
     isFavorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
     verticalPadding: Dp = ListItemVerticalPadding,
+    enabled: Boolean = true,
 ) {
     val agentName = agent.name ?: agent.id
     val resolvedAvatarUrl = resolveAvatarUrl(agent.avatarUrl, serverUrl)
@@ -626,7 +684,7 @@ private fun LazyItemScope.AgentListItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .dragSelectRow(dragSelection, onClick = onClick)
+            .then(if (enabled) Modifier.dragSelectRow(dragSelection, onClick = onClick) else Modifier.alpha(DisabledAlpha))
             .padding(vertical = verticalPadding, horizontal = 16.dp)
             .animateItem(),
         verticalAlignment = Alignment.CenterVertically,
@@ -673,7 +731,7 @@ private fun LazyItemScope.AgentListItem(
                 tint = MaterialTheme.colorScheme.primary,
             )
         }
-        if (onToggleFavorite != null) {
+        if (onToggleFavorite != null && enabled) {
             Spacer(modifier = Modifier.width(4.dp))
             FavoriteStarButton(
                 isFavorite = isFavorite,
@@ -683,6 +741,63 @@ private fun LazyItemScope.AgentListItem(
         }
     }
 }
+
+/** A named model spec: its own icon, label and description, apart from the raw model it runs on. */
+@Composable
+private fun LazyItemScope.SpecListItem(
+    spec: ModelSpec,
+    endpoint: String?,
+    isSelected: Boolean,
+    serverUrl: String,
+    onClick: () -> Unit,
+    dragSelection: ListDragSelection,
+) {
+    // `iconURL` is either an image or an endpoint name whose glyph to borrow.
+    val iconUrl = spec.iconURL?.takeIf { it.startsWith("http") || it.startsWith("/") }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dragSelectRow(dragSelection, onClick = onClick)
+            .padding(vertical = ListItemVerticalPadding, horizontal = 16.dp)
+            .animateItem(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        EndpointIcon(
+            endpointName = if (iconUrl == null) spec.iconURL ?: endpoint else endpoint,
+            iconUrl = iconUrl?.let { resolveAvatarUrl(it, serverUrl) },
+            size = IconSize,
+            contentDescription = null,
+            glyphTint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.dragSelectRowIcon(),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = spec.label ?: spec.name,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            spec.description?.takeIf { it.isNotBlank() }?.let { description ->
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (isSelected) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                Icons.Default.Check,
+                contentDescription = stringResource(Res.string.cd_selected),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+private const val DisabledAlpha = 0.38f
 
 @Composable
 private fun FavoriteStarButton(

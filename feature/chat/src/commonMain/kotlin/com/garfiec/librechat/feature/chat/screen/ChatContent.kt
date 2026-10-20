@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.garfiec.librechat.core.common.EndpointConstants
+import com.garfiec.librechat.core.model.config.labelFor
 import com.garfiec.librechat.core.ui.components.LoadingIndicator
 import com.garfiec.librechat.feature.chat.components.LandingContent
 import com.garfiec.librechat.feature.chat.components.MessageList
@@ -128,9 +129,11 @@ internal fun ColumnScope.ChatContent(
     } else {
         when (uiState.screenState) {
             ChatScreenState.LANDING -> {
+                // A selected spec is named by its label, as the top bar names it.
+                val specLabel = uiState.selection.modelSpecs?.labelFor(uiState.selectedSpec)
                 LandingContent(
-                    selectedModel = uiState.selectedModel,
-                    selectedAgentName = agentName,
+                    selectedModel = specLabel ?: uiState.selectedModel,
+                    selectedAgentName = agentName?.let { specLabel ?: it },
                     onSelectModel = viewModel::openModelSheet,
                     // A temporary chat is never filed (SendDispatchDelegate), so it claims no project.
                     projectName = projectName?.takeIf { !uiState.isTemporaryChat },

@@ -1236,7 +1236,7 @@
         "file": "feature/chat/src/commonMain/kotlin/com/garfiec/librechat/feature/chat/util/SpecSeed.kt",
         "symbol": "resolveDefaultModelSpec"
       },
-      "why": "Which model spec a new chat opens on: a `default` spec, else a `softDefault` one (which yields to the user's prior selection unless `interface.modelSelect` is off), else the first spec when `prioritize` is on or the selector is off. ModelSelectionDelegate seeds the landing from it ahead of (prioritized) or just behind (soft) the user's last-used model.",
+      "why": "Which model spec a new chat opens on: a `default` spec, else the spec the user last picked (`LAST_CONVO_SETUP.spec`; mobile stores it with the last-used pair), else a `softDefault` one (which yields to the user's prior selection unless `interface.modelSelect` is off), else the first spec when `prioritize` is on or the selector is off. ModelSelectionDelegate seeds the landing from it ahead of (prioritized) or just behind (soft) the user's last-used model.",
       "failure_mode": "Upstream changes the precedence and new chats on mobile open on a different agent or model than on web for the same server -- typically a raw model without the admin's agent, prompt and tools -- with nothing failing."
     },
     {
@@ -1251,6 +1251,33 @@
       },
       "why": "`shouldApplyModelSpec` decides whether getDefaultModelSpec's answer is used at all: only under `prioritize === true` or `interface.modelSelect` off, or for a soft default when the new chat carries no selection. The resolver folds that gate in. Watched as a file because the gate is a nested const the block extractor cannot isolate.",
       "failure_mode": "Upstream loosens or tightens when a spec overrides the user's selection, and mobile keeps applying the old rule -- forcing a spec web no longer forces, or leaving a raw model where web now opens the spec."
+    },
+    {
+      "id": "model-spec-added-endpoints",
+      "upstream": {
+        "file": "client/src/hooks/Endpoint/useEndpoints.ts",
+        "symbol": "filteredEndpoints",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "feature/chat/src/commonMain/kotlin/com/garfiec/librechat/feature/chat/util/SpecSeed.kt",
+        "symbol": "showsRawEndpoint"
+      },
+      "why": "Which raw endpoints the model picker lists next to the named specs: only those in `modelSpecs.addedEndpoints` when it is set. Mobile also hides every raw row under `enforce` with no `addedEndpoints`, where web lists them and every pick fails.",
+      "failure_mode": "Upstream changes the filter and the picker offers endpoints web hides (an admin's spec-only deployment shows raw models) or hides ones web offers."
+    },
+    {
+      "id": "model-spec-enforce",
+      "upstream": {
+        "file": "api/server/middleware/buildEndpointOption.js",
+        "mode": "file"
+      },
+      "kotlin": {
+        "file": "feature/chat/src/commonMain/kotlin/com/garfiec/librechat/feature/chat/util/SpecSeed.kt",
+        "symbol": "requiresSpec"
+      },
+      "why": "Under `modelSpecs.enforce` with a non-empty list the server rejects any send without a `spec` (`No model spec selected`), with no exception for `addedEndpoints`. The send preflight blocks such a send and the picker greys raw rows, so the user picks a spec instead of meeting the server's error.",
+      "failure_mode": "Upstream relaxes the rule (say, exempting `addedEndpoints`) and mobile keeps blocking sends web allows, or tightens it and mobile lets through sends the server now rejects."
     },
     {
       "id": "context-gauge-estimate",

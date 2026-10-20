@@ -47,12 +47,13 @@ class NewChatSelectionHandoff {
          * resumed stream instead of vanishing until completion.
          */
         val optimisticUserMessage: Message? = null,
+        val spec: String? = null,
     )
 
     private var pending: Selection? = null
 
-    fun put(conversationId: String, endpoint: String, model: String?, optimisticUserMessage: Message? = null) {
-        pending = Selection(conversationId, endpoint, model, optimisticUserMessage)
+    fun put(conversationId: String, endpoint: String, model: String?, optimisticUserMessage: Message? = null, spec: String? = null) {
+        pending = Selection(conversationId, endpoint, model, optimisticUserMessage, spec)
     }
 
     /** Returns and clears the pending selection only when it was staged for [conversationId]. */

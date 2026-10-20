@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import com.garfiec.librechat.core.common.EndpointConstants
 import com.garfiec.librechat.core.model.Agent
+import com.garfiec.librechat.core.model.config.ModelSpecs
+import com.garfiec.librechat.core.model.config.labelFor
 import com.garfiec.librechat.feature.chat.resources.Res
 import com.garfiec.librechat.feature.chat.resources.chat_agent_fallback_label
 import com.garfiec.librechat.feature.chat.resources.select_model
@@ -17,7 +19,8 @@ import org.jetbrains.compose.resources.stringResource
  * @property displayModel the label to render. Under the agents endpoint this is the agent
  *   name, falling back to a neutral "Agent" label when unresolved — NEVER a raw model
  *   string, which would mislabel an agent chat as e.g. "Message gpt-3.5-turbo".
- *   Non-agent endpoints show the model name.
+ *   A selected spec's label (or name) takes precedence; other non-agent endpoints show
+ *   the model name.
  */
 data class ChatModelLabel(
     val agentName: String?,
@@ -34,14 +37,18 @@ fun rememberChatModelLabel(
     selectedEndpoint: String?,
     selectedModel: String?,
     agents: List<Agent>,
+    selectedSpec: String? = null,
+    modelSpecs: ModelSpecs? = null,
 ): ChatModelLabel {
     val agentFallbackLabel = stringResource(Res.string.chat_agent_fallback_label)
-    return remember(selectedEndpoint, selectedModel, agents, agentFallbackLabel) {
+    return remember(selectedEndpoint, selectedModel, agents, selectedSpec, modelSpecs, agentFallbackLabel) {
         chatModelLabel(
             selectedEndpoint = selectedEndpoint,
             selectedModel = selectedModel,
             agents = agents,
             agentFallbackLabel = agentFallbackLabel,
+            selectedSpec = selectedSpec,
+            modelSpecs = modelSpecs,
         )
     }
 }
@@ -56,13 +63,18 @@ internal fun chatModelLabel(
     selectedModel: String?,
     agents: List<Agent>,
     agentFallbackLabel: String,
+    selectedSpec: String? = null,
+    modelSpecs: ModelSpecs? = null,
 ): ChatModelLabel {
     val agentName = if (selectedEndpoint == EndpointConstants.AGENTS && selectedModel != null) {
         agents.find { it.id == selectedModel }?.name
     } else {
         null
     }
-    val displayModel = if (selectedEndpoint == EndpointConstants.AGENTS) {
+    val specLabel = modelSpecs?.labelFor(selectedSpec)
+    val displayModel = if (specLabel != null) {
+        specLabel
+    } else if (selectedEndpoint == EndpointConstants.AGENTS) {
         agentName ?: agentFallbackLabel
     } else {
         selectedModel

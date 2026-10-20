@@ -27,6 +27,7 @@ data class DrawerConversationDisplayData(
     val chatProjectId: String? = null,
     val tags: List<String>,
     val endpointIconUrl: String? = null,
+    val modelLabel: String? = model,
 )
 
 /**

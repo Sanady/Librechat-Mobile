@@ -88,6 +88,8 @@ internal fun rememberChatTopBarSpec(
                 selectedEndpoint = uiState.selectedEndpoint,
                 selectedModel = uiState.selectedModel,
                 agents = uiState.agents,
+                selectedSpec = uiState.selectedSpec,
+                modelSpecs = uiState.selection.modelSpecs,
             )
             BarTitle(
                 text = label.displayModel ?: stringResource(Res.string.select_model),

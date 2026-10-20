@@ -44,7 +44,7 @@ import com.garfiec.librechat.core.data.db.entity.ServerEntity
         MessageSearchEntity::class,
         MessageSearchFtsEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -65,6 +65,7 @@ import com.garfiec.librechat.core.data.db.entity.ServerEntity
         // 9 -> 10 adds the message search side table and its FTS4 index, both empty: DDL only, it
         // never reads `messages`. SearchIndexBackfillSessionTask fills them after launch.
         AutoMigration(from = 9, to = 10),
+        AutoMigration(from = 10, to = 11),
     ],
 )
 @TypeConverters(Converters::class)

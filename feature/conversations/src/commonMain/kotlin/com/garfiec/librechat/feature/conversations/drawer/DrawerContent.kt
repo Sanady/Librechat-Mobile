@@ -1696,10 +1696,10 @@ private fun DrawerConversationItem(
                     data.updatedAt?.listLabel(format, reference)
                 }
                 val relativeTime = timeLabel?.resolve()
-                val subtitle = remember(data.model, relativeTime) {
+                val subtitle = remember(data.modelLabel, relativeTime) {
                     buildString {
-                        data.model?.let { model ->
-                            append(model.take(20))
+                        data.modelLabel?.let { model ->
+                            append(model)
                         }
                         if (!relativeTime.isNullOrEmpty()) {
                             if (isNotEmpty()) append(" \u00B7 ")

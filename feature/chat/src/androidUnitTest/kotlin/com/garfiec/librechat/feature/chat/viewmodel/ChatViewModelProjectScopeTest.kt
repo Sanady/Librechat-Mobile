@@ -47,7 +47,7 @@ class ChatViewModelProjectScopeTest {
                 chatRepository.startChat(
                     any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
                     any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                    any(), any(), any(),
+                    any(), any(), any(), any(),
                 )
             } returns MutableSharedFlow()
         }
@@ -96,7 +96,7 @@ class ChatViewModelProjectScopeTest {
     private fun MockKMatcherScope.startChatWith(projectId: String?) = fixture.chatRepository.startChat(
         any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
         any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
-        any(), any(), projectId,
+        any(), any(), any(), projectId,
     )
 
     private fun TestScope.send(vm: ChatViewModel) {

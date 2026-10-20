@@ -66,6 +66,8 @@ internal fun ChatOptionsSheetHost(
         onSelectPrimary = viewModel::onModelSelected,
         onSelectSecondary = viewModel::setSecondaryModel,
         setupPick = compareSetupPick,
+        onSelectPrimarySpec = viewModel::onSpecSelected,
+        onSelectSecondarySpec = viewModel::setSecondarySpec,
     )
 
     ChatOptionsBottomSheet(
@@ -103,6 +105,9 @@ internal fun ChatOptionsSheetHost(
         // While comparing, the page edits whichever lane its A/B pair picks, starting on the active
         // tab's; the sheet itself needs no comparison branch.
         selector = ModelSelectorPageParams(
+            modelSpecs = uiState.selection.modelSpecs.takeIf { comparison.onSpecSelect != null },
+            selectedSpec = comparison.selectedSpec,
+            onSpecSelect = { spec -> comparison.onSpecSelect?.invoke(spec) },
             endpointConfigs = uiState.endpointConfigs,
             availableModels = uiState.availableModels,
             agents = uiState.agents,
