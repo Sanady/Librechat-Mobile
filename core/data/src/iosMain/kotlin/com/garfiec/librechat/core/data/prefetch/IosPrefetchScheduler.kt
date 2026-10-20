@@ -17,6 +17,7 @@ import platform.Foundation.NSError
 import platform.Foundation.NSUserDefaults
 import platform.Foundation.dateWithTimeIntervalSince1970
 import platform.Foundation.timeIntervalSince1970
+import kotlin.concurrent.Volatile
 
 /**
  * The two background task identifiers, and what each is for.
@@ -50,6 +51,25 @@ object IosPrefetchTasks {
     /** Earliest the system may consider each task. A floor, never a cadence — see [IosPrefetchScheduler]. */
     const val REFRESH_EARLIEST_SECONDS: Double = 2.0 * 60 * 60
     const val PROCESSING_EARLIEST_SECONDS: Double = 6.0 * 60 * 60
+
+    /**
+     * Whether `PrefetchBackgroundTasks.swift` has installed both launch handlers.
+     *
+     * Submitting a request whose identifier has no handler is an uncatchable
+     * `NSInternalInconsistencyException`, not an `NSError`, so [IosPrefetchScheduler] refuses to
+     * submit until this is set. The app registers before it starts Koin, which makes it true before
+     * any submission is possible; the gate is the backstop for a reordering that reopens the race
+     * (2026.10.6 crashed on every signed-in cold launch when registration ran after Koin).
+     *
+     * Volatile: set on the main thread, read from the coordinator's background dispatcher.
+     */
+    @Volatile
+    var launchHandlersRegistered: Boolean = false
+        private set
+
+    fun markLaunchHandlersRegistered() {
+        launchHandlersRegistered = true
+    }
 }
 
 /**
@@ -131,6 +151,16 @@ class IosPrefetchScheduler : PrefetchScheduler {
 
     @OptIn(ExperimentalForeignApi::class)
     private fun submit(request: BGTaskRequest): Boolean = memScoped {
+        if (!IosPrefetchTasks.launchHandlersRegistered) {
+            // Not an error iOS reports: it throws, and the process dies. Skipping leaves whatever
+            // request an earlier process submitted in place, and the due date unset, so the next
+            // emission tries again.
+            Diag.w(
+                "Prefetch",
+                attrs = mapOf("identifier" to request.identifier),
+            ) { "background task launch handlers not registered yet; submission skipped" }
+            return@memScoped false
+        }
         val error = alloc<ObjCObjectVar<NSError?>>()
         if (scheduler.submitTaskRequest(request, error.ptr)) {
             schedulingAvailable = true
