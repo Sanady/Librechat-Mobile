@@ -136,16 +136,22 @@ class DrawerViewModel(
     private val _expandedProjectChats = MutableStateFlow<List<Conversation>>(emptyList())
     private val _expandedProjectLoading = MutableStateFlow(false)
 
+    private val drawerModelConfig = combine(
+        configRepository.endpointConfigs,
+        configRepository.startupConfig,
+    ) { endpoints, config -> endpoints to config?.modelSpecs }
+
     val inlineProjectChats: StateFlow<InlineProjectChatsState> = combine(
         _expandedProjectId,
         _expandedProjectChats,
         _expandedProjectLoading,
         conversationListStateHolder.activeConversationId,
-        configRepository.endpointConfigs,
-    ) { expandedId, convos, loading, activeId, configs ->
+        drawerModelConfig,
+    ) { expandedId, convos, loading, activeId, modelConfig ->
+        val (configs, specs) = modelConfig
         InlineProjectChatsState(
             expandedProjectId = expandedId,
-            conversations = convos.map { it.toDrawerDisplayData(activeId, configs) },
+            conversations = convos.map { it.toDrawerDisplayData(activeId, configs, specs) },
             isLoading = loading,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InlineProjectChatsState())
@@ -229,14 +235,15 @@ class DrawerViewModel(
         favoriteConversations,
         pinnedConversations,
         conversationListStateHolder.activeConversationId,
-        configRepository.endpointConfigs,
-    ) { grouped, favConvos, pinnedConvos, activeId, endpointConfigs ->
+        drawerModelConfig,
+    ) { grouped, favConvos, pinnedConvos, activeId, modelConfig ->
+        val (endpointConfigs, specs) = modelConfig
         DrawerDisplaySnapshot(
             grouped = grouped.map { (group, convos) ->
-                group to convos.map { it.toDrawerDisplayData(activeId, endpointConfigs) }
+                group to convos.map { it.toDrawerDisplayData(activeId, endpointConfigs, specs) }
             },
-            favorites = favConvos.map { it.toDrawerDisplayData(activeId, endpointConfigs) },
-            pinned = pinnedConvos.map { it.toDrawerDisplayData(activeId, endpointConfigs) },
+            favorites = favConvos.map { it.toDrawerDisplayData(activeId, endpointConfigs, specs) },
+            pinned = pinnedConvos.map { it.toDrawerDisplayData(activeId, endpointConfigs, specs) },
         )
     }
 

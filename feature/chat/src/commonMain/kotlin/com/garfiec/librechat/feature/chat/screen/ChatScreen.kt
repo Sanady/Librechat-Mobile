@@ -151,6 +151,8 @@ fun ChatScreen(
         selectedEndpoint = uiState.selectedEndpoint,
         selectedModel = uiState.selectedModel,
         agents = uiState.agents,
+        selectedSpec = uiState.selectedSpec,
+        modelSpecs = uiState.selection.modelSpecs,
     )
 
     val onStartRecordingWithPermission = rememberChatStartRecording(
@@ -169,9 +171,13 @@ fun ChatScreen(
     // both follow the active tab.
     val isSecondaryTab = uiState.comparisonState.isEnabled && activeComparisonTab == 1
     val effectiveSelectedModelDisplay = if (isSecondaryTab) {
-        viewModel.getSecondaryModelDisplayName()
-            ?: uiState.comparisonState.secondaryModel
-            ?: displayModel
+        rememberChatModelLabel(
+            selectedEndpoint = uiState.comparisonState.secondaryEndpoint,
+            selectedModel = uiState.comparisonState.secondaryModel,
+            agents = uiState.agents,
+            selectedSpec = uiState.comparisonState.secondarySpec,
+            modelSpecs = uiState.selection.modelSpecs,
+        ).displayModel ?: displayModel
     } else {
         displayModel
     }

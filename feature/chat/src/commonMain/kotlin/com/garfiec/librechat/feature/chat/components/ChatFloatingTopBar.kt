@@ -342,6 +342,8 @@ private fun MaterialChatTopBar(
                             selectedEndpoint = uiState.selectedEndpoint,
                             selectedModel = uiState.selectedModel,
                             agents = uiState.agents,
+                            selectedSpec = uiState.selectedSpec,
+                            modelSpecs = uiState.selection.modelSpecs,
                         )
                         FloatingBarLabelChip(
                             text = label.displayModel ?: stringResource(Res.string.select_model),

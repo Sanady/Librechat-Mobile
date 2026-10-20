@@ -69,8 +69,8 @@ internal fun ColumnScope.ChatContent(
     when (uiState.screenState) {
         ChatScreenState.LANDING -> {
             LandingContent(
-                selectedModel = uiState.selectedModel,
-                selectedAgentName = agentName,
+                selectedModel = displayModel,
+                selectedAgentName = agentName?.let { displayModel },
                 onSelectModel = viewModel::openModelSheet,
                 modifier = topInsetModifier.then(pullUpModifier),
             )
