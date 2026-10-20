@@ -20,7 +20,9 @@ import com.garfiec.librechat.core.data.repository.TagRepository
 import com.garfiec.librechat.core.model.ChatProject
 import com.garfiec.librechat.core.model.Conversation
 import com.garfiec.librechat.core.model.ConversationTag
+import com.garfiec.librechat.core.model.EndpointConfig
 import com.garfiec.librechat.core.model.SAVED_TAG
+import com.garfiec.librechat.core.model.config.ModelSpecs
 import com.garfiec.librechat.core.model.config.isSchedulesEnabled
 import com.garfiec.librechat.core.model.permissions.Permission
 import com.garfiec.librechat.core.model.permissions.PermissionType
@@ -136,10 +138,17 @@ class DrawerViewModel(
     private val _expandedProjectChats = MutableStateFlow<List<Conversation>>(emptyList())
     private val _expandedProjectLoading = MutableStateFlow(false)
 
+    // This transport snapshot needs no structural equality. A concrete type also keeps the
+    // native optimizer from joining this configuration to unrelated generic Pair payloads.
+    private class DrawerModelConfig(
+        val endpoints: Map<String, EndpointConfig>,
+        val specs: ModelSpecs?,
+    )
+
     private val drawerModelConfig = combine(
         configRepository.endpointConfigs,
         configRepository.startupConfig,
-    ) { endpoints, config -> endpoints to config?.modelSpecs }
+    ) { endpoints, config -> DrawerModelConfig(endpoints, config?.modelSpecs) }
 
     val inlineProjectChats: StateFlow<InlineProjectChatsState> = combine(
         _expandedProjectId,
@@ -148,10 +157,9 @@ class DrawerViewModel(
         conversationListStateHolder.activeConversationId,
         drawerModelConfig,
     ) { expandedId, convos, loading, activeId, modelConfig ->
-        val (configs, specs) = modelConfig
         InlineProjectChatsState(
             expandedProjectId = expandedId,
-            conversations = convos.map { it.toDrawerDisplayData(activeId, configs, specs) },
+            conversations = convos.map { it.toDrawerDisplayData(activeId, modelConfig.endpoints, modelConfig.specs) },
             isLoading = loading,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InlineProjectChatsState())
@@ -237,13 +245,12 @@ class DrawerViewModel(
         conversationListStateHolder.activeConversationId,
         drawerModelConfig,
     ) { grouped, favConvos, pinnedConvos, activeId, modelConfig ->
-        val (endpointConfigs, specs) = modelConfig
         DrawerDisplaySnapshot(
             grouped = grouped.map { (group, convos) ->
-                group to convos.map { it.toDrawerDisplayData(activeId, endpointConfigs, specs) }
+                group to convos.map { it.toDrawerDisplayData(activeId, modelConfig.endpoints, modelConfig.specs) }
             },
-            favorites = favConvos.map { it.toDrawerDisplayData(activeId, endpointConfigs, specs) },
-            pinned = pinnedConvos.map { it.toDrawerDisplayData(activeId, endpointConfigs, specs) },
+            favorites = favConvos.map { it.toDrawerDisplayData(activeId, modelConfig.endpoints, modelConfig.specs) },
+            pinned = pinnedConvos.map { it.toDrawerDisplayData(activeId, modelConfig.endpoints, modelConfig.specs) },
         )
     }
 

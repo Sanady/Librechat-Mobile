@@ -846,7 +846,9 @@ class ModelSelectionDelegate(
 
     private enum class Selectability { VALID, PENDING, INVALID }
 
-    private data class SeedInputs(
+    // Transport-only snapshots: no copy, destructuring or structural equality is used.
+    // Avoid generating equality/hash code over the full config and agent graphs on Native.
+    private class SeedInputs(
         val lastEndpoint: String?,
         val lastModel: String?,
         val rawModels: Map<String, List<String>>,
@@ -858,7 +860,7 @@ class ModelSelectionDelegate(
         val modelSpecs: ModelSpecs?,
     )
 
-    private data class AgentsInput(
+    private class AgentsInput(
         val agents: List<Agent>,
         val conversationId: String?,
         val loaded: Boolean,
