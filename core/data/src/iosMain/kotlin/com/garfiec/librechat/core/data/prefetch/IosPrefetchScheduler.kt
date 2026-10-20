@@ -79,7 +79,19 @@ object IosPrefetchTasks {
  * drives both platforms. Only the launch handlers are Swift's, because only the app target can
  * install them before launch finishes.
  */
-class IosPrefetchScheduler : PrefetchScheduler {
+class IosPrefetchScheduler(
+    /**
+     * Whether a submission is safe yet — see [IosPrefetchTasks.launchHandlersRegistered]. Injected,
+     * with the gate's one-way global as the default, so a test can hold it in either state.
+     */
+    private val handlersRegistered: () -> Boolean = { IosPrefetchTasks.launchHandlersRegistered },
+    /**
+     * The one `BGTaskScheduler` call this class makes. Behind a seam because a test process cannot
+     * observe the real one: without an app bundle iOS answers every submission with an error, so a
+     * test that lets the call through passes with or without the gate and shows nothing.
+     */
+    private val submitter: BackgroundTaskSubmitter = SystemBackgroundTaskSubmitter,
+) : PrefetchScheduler {
 
     private val scheduler get() = BGTaskScheduler.sharedScheduler
     private val defaults get() = NSUserDefaults.standardUserDefaults
@@ -149,9 +161,8 @@ class IosPrefetchScheduler : PrefetchScheduler {
         }
     }
 
-    @OptIn(ExperimentalForeignApi::class)
-    private fun submit(request: BGTaskRequest): Boolean = memScoped {
-        if (!IosPrefetchTasks.launchHandlersRegistered) {
+    private fun submit(request: BGTaskRequest): Boolean {
+        if (!handlersRegistered()) {
             // Not an error iOS reports: it throws, and the process dies. Skipping leaves whatever
             // request an earlier process submitted in place, and the due date unset, so the next
             // emission tries again.
@@ -159,15 +170,15 @@ class IosPrefetchScheduler : PrefetchScheduler {
                 "Prefetch",
                 attrs = mapOf("identifier" to request.identifier),
             ) { "background task launch handlers not registered yet; submission skipped" }
-            return@memScoped false
+            return false
         }
-        val error = alloc<ObjCObjectVar<NSError?>>()
-        if (scheduler.submitTaskRequest(request, error.ptr)) {
+        val refusal = submitter.submit(request)
+        if (refusal == null) {
             schedulingAvailable = true
-            return@memScoped true
+            return true
         }
 
-        val code = error.value?.code
+        val code = refusal.code
         if (code == BGTaskSchedulerErrorCodeUnavailable) {
             // Background App Refresh is switched off for this app, so nothing will ever run — the
             // readout hides its scheduled-run row rather than showing "Never" beside no cause.
@@ -180,7 +191,7 @@ class IosPrefetchScheduler : PrefetchScheduler {
                 "code" to (code?.toString() ?: "unknown"),
             ),
         ) { "background task submission refused" }
-        false
+        return false
     }
 
     private fun dueKey(identifier: String) = "$DUE_KEY_PREFIX$identifier"
@@ -188,5 +199,25 @@ class IosPrefetchScheduler : PrefetchScheduler {
     private companion object {
         val IDENTIFIERS = listOf(IosPrefetchTasks.REFRESH_ID, IosPrefetchTasks.PROCESSING_ID)
         const val DUE_KEY_PREFIX = "prefetch_task_due_"
+    }
+}
+
+/** Why `BGTaskScheduler` declined a request; [code] is the `NSError` code, or null if it gave none. */
+class BackgroundTaskRefusal(val code: Long?)
+
+/** Hands a request to the system scheduler, answering null when it was accepted. */
+fun interface BackgroundTaskSubmitter {
+    fun submit(request: BGTaskRequest): BackgroundTaskRefusal?
+}
+
+private object SystemBackgroundTaskSubmitter : BackgroundTaskSubmitter {
+    @OptIn(ExperimentalForeignApi::class)
+    override fun submit(request: BGTaskRequest): BackgroundTaskRefusal? = memScoped {
+        val error = alloc<ObjCObjectVar<NSError?>>()
+        if (BGTaskScheduler.sharedScheduler.submitTaskRequest(request, error.ptr)) {
+            null
+        } else {
+            BackgroundTaskRefusal(error.value?.code)
+        }
     }
 }
