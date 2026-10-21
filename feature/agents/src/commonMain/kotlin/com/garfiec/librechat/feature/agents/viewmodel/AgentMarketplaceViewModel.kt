@@ -10,6 +10,7 @@ import com.garfiec.librechat.core.data.repository.RoleRepository
 import com.garfiec.librechat.core.data.util.PermissionGate
 import com.garfiec.librechat.core.model.Agent
 import com.garfiec.librechat.core.model.AgentCategory
+import com.garfiec.librechat.core.model.PaginatedAgents
 import com.garfiec.librechat.core.model.media.resolveAvatarUrl
 import com.garfiec.librechat.core.model.permissions.Permission
 import com.garfiec.librechat.core.model.permissions.PermissionType
@@ -34,7 +35,7 @@ data class AgentMarketplaceUiState(
     val searchQuery: String = "",
     val categories: List<AgentCategory> = emptyList(),
     val hasMore: Boolean = true,
-    val currentPage: Int = 1,
+    val nextCursor: String? = null,
     // Role-permission gates — default permissive.
     val agentsEnabled: Boolean = true,
     val agentsCreateEnabled: Boolean = true,
@@ -53,8 +54,16 @@ class AgentMarketplaceViewModel(
 
     private var searchJob: Job? = null
 
+    // The one in-flight page read. A first-page read cancels it, so a page for the old chip,
+    // search or cursor never lands on the new list or installs its cursor there.
+    private var pageJob: Job? = null
+
+    // The filter the shown list (and so [AgentMarketplaceUiState.nextCursor]) was read with. The
+    // search field updates state before its debounce reloads, so loadMore must not read it there.
+    private var listFilter = AgentListFilter()
+
     companion object {
-        private const val PAGE_SIZE = 10
+        private const val PAGE_SIZE = 20
         private const val SEARCH_DEBOUNCE_MS = 500L
     }
 
@@ -99,28 +108,27 @@ class AgentMarketplaceViewModel(
     }
 
     fun loadAgents() {
-        viewModelScope.launch {
+        pageJob?.cancel()
+        pageJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isLoading = true,
+                isLoadingMore = false,
+                isRefreshing = false,
                 error = null,
-                currentPage = 1,
+                nextCursor = null,
                 hasMore = true,
             )
-            val state = _uiState.value
-            when (val result = agentRepository.getAgentsPaginated(
-                page = 1,
-                limit = PAGE_SIZE,
-                search = state.searchQuery.ifBlank { null },
-                category = state.selectedCategory,
-            )) {
+            val filter = currentFilter()
+            when (val result = readPage(filter)) {
                 is Result.Success -> {
+                    listFilter = filter
                     val displayAgents = result.data.agents.map { it.toCardDisplayData() }.distinctBy { it.id }
                     _uiState.value = _uiState.value.copy(
                         agents = displayAgents,
                         filteredAgents = displayAgents,
                         isLoading = false,
                         hasMore = result.data.hasMore,
-                        currentPage = 1,
+                        nextCursor = result.data.nextCursor,
                     )
                 }
                 is Result.Error -> {
@@ -134,20 +142,18 @@ class AgentMarketplaceViewModel(
         }
     }
 
-    /** Fetches the next page and appends results. No-ops if already loading or no more pages. */
+    /**
+     * Fetches the page after the last one read and appends it. No-ops if already loading, or when
+     * there is no next page or no cursor to read it by.
+     */
     fun loadMore() {
         val state = _uiState.value
-        if (!state.hasMore || state.isLoadingMore || state.isLoading) return
+        val cursor = state.nextCursor
+        if (!state.hasMore || cursor == null || state.isLoadingMore || state.isLoading || state.isRefreshing) return
 
-        viewModelScope.launch {
-            val nextPage = state.currentPage + 1
-            _uiState.value = state.copy(isLoadingMore = true)
-            when (val result = agentRepository.getAgentsPaginated(
-                page = nextPage,
-                limit = PAGE_SIZE,
-                search = state.searchQuery.ifBlank { null },
-                category = state.selectedCategory,
-            )) {
+        pageJob = viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingMore = true)
+            when (val result = readPage(listFilter, cursor)) {
                 is Result.Success -> {
                     val currentAgents = _uiState.value.agents
                     // The grid keys cards by id: a page boundary that shifts under the cursor
@@ -158,8 +164,10 @@ class AgentMarketplaceViewModel(
                         agents = newAgents,
                         filteredAgents = newAgents,
                         isLoadingMore = false,
-                        hasMore = result.data.hasMore,
-                        currentPage = nextPage,
+                        // A cursor the server can't parse reads the first page again, with the
+                        // same `after`; paging on would re-request it forever.
+                        hasMore = result.data.hasMore && result.data.nextCursor != cursor,
+                        nextCursor = result.data.nextCursor,
                     )
                 }
                 is Result.Error -> {
@@ -174,23 +182,20 @@ class AgentMarketplaceViewModel(
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isRefreshing = true)
-            val state = _uiState.value
-            when (val result = agentRepository.getAgentsPaginated(
-                page = 1,
-                limit = PAGE_SIZE,
-                search = state.searchQuery.ifBlank { null },
-                category = state.selectedCategory,
-            )) {
+        pageJob?.cancel()
+        pageJob = viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isRefreshing = true, isLoading = false, isLoadingMore = false)
+            val filter = currentFilter()
+            when (val result = readPage(filter)) {
                 is Result.Success -> {
+                    listFilter = filter
                     val displayAgents = result.data.agents.map { it.toCardDisplayData() }.distinctBy { it.id }
                     _uiState.value = _uiState.value.copy(
                         agents = displayAgents,
                         filteredAgents = displayAgents,
                         isRefreshing = false,
                         hasMore = result.data.hasMore,
-                        currentPage = 1,
+                        nextCursor = result.data.nextCursor,
                     )
                 }
                 is Result.Error -> {
@@ -232,6 +237,19 @@ class AgentMarketplaceViewModel(
         )
         loadAgents()
     }
+
+    private fun currentFilter(): AgentListFilter = _uiState.value.let {
+        AgentListFilter.of(selectedCategory = it.selectedCategory, searchQuery = it.searchQuery)
+    }
+
+    private suspend fun readPage(filter: AgentListFilter, cursor: String? = null): Result<PaginatedAgents> =
+        agentRepository.getAgentsPaginated(
+            limit = PAGE_SIZE,
+            cursor = cursor,
+            search = filter.search,
+            category = filter.category,
+            promoted = filter.promoted,
+        )
 
     fun dismissError() {
         _uiState.value = _uiState.value.copy(error = null)

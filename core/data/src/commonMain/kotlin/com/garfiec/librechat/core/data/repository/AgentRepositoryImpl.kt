@@ -46,23 +46,30 @@ class AgentRepositoryImpl(
     }
 
     override suspend fun getAgentsPaginated(
-        page: Int,
         limit: Int,
+        cursor: String?,
         search: String?,
         category: String?,
+        promoted: Boolean,
+        requiredPermission: Int?,
     ): Result<PaginatedAgents> {
         return safeApiCall {
             val response = agentsApi.getAgentsPaginated(
-                pageNumber = page,
-                pageSize = limit,
+                limit = limit,
+                cursor = cursor,
                 search = search,
                 category = category,
+                promoted = promoted,
+                requiredPermission = requiredPermission,
             )
             editVerdicts.record(response.data)
             PaginatedAgents(
                 agents = response.data,
-                hasMore = response.hasMore,
-                total = response.data.size,
+                // Like the web client (`getNextPageParam: lastPage.after`), there is a next page
+                // only when there is a cursor to read it with; without one, load-more would
+                // re-read the first page forever.
+                hasMore = response.hasMore && response.after != null,
+                nextCursor = response.after,
             )
         }
     }
@@ -119,7 +126,7 @@ class AgentRepositoryImpl(
 
     override suspend fun duplicateAgent(id: String): Result<Agent> {
         return safeApiCall {
-            val agent = agentsApi.duplicateAgent(id)
+            val agent = agentsApi.duplicateAgent(id).agent
             invalidateCache()
             agent
         }

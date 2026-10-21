@@ -10,6 +10,7 @@ import com.garfiec.librechat.core.model.request.CreateAgentRequest
 import com.garfiec.librechat.core.model.request.RevertAgentRequest
 import com.garfiec.librechat.core.model.request.UpdateAgentRequest
 import com.garfiec.librechat.core.model.response.AgentListResponse
+import com.garfiec.librechat.core.model.response.DuplicateAgentResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
@@ -40,18 +41,30 @@ class AgentsApi constructor(
             if (category != null) parameter("category", category)
         }.body()
 
+    /**
+     * One page of `GET /api/agents` (upstream `getListAgentsHandler`).
+     *
+     * The route reads `limit` and `cursor` (the previous page's `after`); it has no page numbers.
+     * [promoted] narrows to Top picks and is sent as `promoted=1`, the only "on" value the route
+     * matches. [requiredPermission] is the permission bit the caller needs on each agent; omitted,
+     * the server uses VIEW.
+     */
     suspend fun getAgentsPaginated(
-        pageNumber: Int,
-        pageSize: Int,
+        limit: Int,
+        cursor: String? = null,
         search: String? = null,
         category: String? = null,
+        promoted: Boolean = false,
+        requiredPermission: Int? = null,
     ): AgentListResponse =
         client.get {
             url { path("api/agents") }
-            parameter("pageNumber", pageNumber)
-            parameter("pageSize", pageSize)
+            parameter("limit", limit)
+            if (cursor != null) parameter("cursor", cursor)
             if (search != null) parameter("search", search)
             if (category != null) parameter("category", category)
+            if (promoted) parameter("promoted", "1")
+            if (requiredPermission != null) parameter("requiredPermission", requiredPermission)
         }.body()
 
     suspend fun getAgent(agentId: String): Agent {
@@ -98,7 +111,7 @@ class AgentsApi constructor(
         }
     }
 
-    suspend fun duplicateAgent(agentId: String): Agent =
+    suspend fun duplicateAgent(agentId: String): DuplicateAgentResponse =
         client.post {
             url { path("api/agents/$agentId/duplicate") }
         }.body()
