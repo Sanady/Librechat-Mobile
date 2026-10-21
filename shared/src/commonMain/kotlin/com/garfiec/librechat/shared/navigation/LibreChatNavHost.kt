@@ -85,6 +85,7 @@ import com.garfiec.librechat.feature.chat.navigation.NewChat
 import com.garfiec.librechat.feature.chat.navigation.chatEntries
 import com.garfiec.librechat.feature.chat.navigation.handoffKey
 import com.garfiec.librechat.feature.chat.navigation.isPlainLanding
+import com.garfiec.librechat.feature.chat.viewmodel.PromptInsertionHandoff
 import com.garfiec.librechat.feature.chat.viewmodel.ServerFileSelectionHandoff
 import com.garfiec.librechat.feature.conversations.drawer.DrawerViewModel
 import com.garfiec.librechat.feature.conversations.navigation.ArchivedConversations
@@ -679,6 +680,7 @@ fun MainNavDisplay(
     navHostViewModel: NavHostViewModel = koinViewModel(),
     drawerViewModel: DrawerViewModel = koinViewModel(),
     serverFileSelectionHandoff: ServerFileSelectionHandoff = koinInject(),
+    promptInsertionHandoff: PromptInsertionHandoff = koinInject(),
 ) {
     NavDisplay(
         backStack = navigator.backStack,
@@ -754,12 +756,20 @@ fun MainNavDisplay(
             agentsEntries(
                 onNavigate = { navigator.navigate(it) },
                 onBack = { navigator.goBack() },
-                onReplace = { navigator.replaceTop(it) },
+                onReplace = { route, replacement -> navigator.replace(route, replacement) },
+                onRemove = { navigator.remove(it) },
                 onPopWhile = { navigator.popWhile(it) },
                 onStartChat = { agentId ->
                     // Carry the agent id into the new chat so it opens on that agent
                     // (Tier-0 override in ModelSelectionDelegate) rather than falling
                     // back to last-used / first-agent / first-model.
+                    navigator.navigateToTopLevel(NewChat(agentId))
+                },
+                // The starter lands in the new chat's composer unsent: staged here, taken by the
+                // landing's ChatScreen when it enters composition (a fresh NewChat(agentId) entry,
+                // or the existing one re-entering when it already was that agent's landing).
+                onStartChatWithPrompt = { agentId, prompt ->
+                    promptInsertionHandoff.put(prompt)
                     navigator.navigateToTopLevel(NewChat(agentId))
                 },
             )

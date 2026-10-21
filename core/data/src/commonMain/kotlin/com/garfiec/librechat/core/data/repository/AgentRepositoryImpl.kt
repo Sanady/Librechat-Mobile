@@ -31,6 +31,9 @@ class AgentRepositoryImpl(
     // [listedEditVerdict]).
     private val editVerdicts = AgentEditVerdicts(activeAccountProvider)
 
+    // The category and Top pick mark the list rows carry and the VIEW read lacks (see [getAgentForViewing]).
+    private val listedLabels = AgentListedLabels(activeAccountProvider)
+
     private val _revision = MutableStateFlow(0L)
     override val revision: StateFlow<Long> = _revision.asStateFlow()
 
@@ -39,9 +42,9 @@ class AgentRepositoryImpl(
     override suspend fun getAgents(category: String?): Result<List<Agent>> {
         return safeApiCall {
             if (category != null) {
-                return@safeApiCall agentsApi.getAgents(category).data.also { editVerdicts.record(it) }
+                return@safeApiCall agentsApi.getAgents(category).data.also { recordListed(it) }
             }
-            cache.getOrFetch { agentsApi.getAgents(null).data }.also { editVerdicts.record(it) }
+            cache.getOrFetch { agentsApi.getAgents(null).data }.also { recordListed(it) }
         }
     }
 
@@ -62,7 +65,7 @@ class AgentRepositoryImpl(
                 promoted = promoted,
                 requiredPermission = requiredPermission,
             )
-            editVerdicts.record(response.data)
+            recordListed(response.data)
             PaginatedAgents(
                 agents = response.data,
                 // Like the web client (`getNextPageParam: lastPage.after`), there is a next page
@@ -76,11 +79,27 @@ class AgentRepositoryImpl(
 
     override suspend fun listedEditVerdict(id: String): Boolean? = editVerdicts.get(id)
 
+    private suspend fun recordListed(agents: List<Agent>) {
+        editVerdicts.record(agents)
+        listedLabels.record(agents)
+    }
+
     override suspend fun getAgent(id: String): Result<Agent> {
         return safeApiCall {
             cache.peek { agents -> agents.find { it.id == id } }
                 ?.let { return@safeApiCall it }
             agentsApi.getAgent(id)
+        }
+    }
+
+    override suspend fun getAgentForViewing(id: String): Result<Agent> {
+        // No cache read: the warm one holds list-projection agents, which lack model, provider,
+        // isPublic and the contacts' detail.
+        return safeApiCall {
+            val agent = agentsApi.getAgent(id)
+            // Decoding the VIEW body fills in "general"/false; those are not the agent's.
+            val listed = listedLabels.get(id)
+            agent.copy(category = listed?.category, isPromoted = listed?.isPromoted == true)
         }
     }
 
@@ -90,8 +109,7 @@ class AgentRepositoryImpl(
     }
 
     override suspend fun getAgentForEditing(id: String): Result<Agent> {
-        // Always fetch from server via /expanded endpoint -- never use cache.
-        // The cache and standard getAgent endpoint only have basic view fields.
+        // No cache read: list rows and the VIEW route both lack instructions, tools and category.
         return safeApiCall {
             agentsApi.getAgentForEditing(id)
         }

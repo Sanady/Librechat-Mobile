@@ -16,8 +16,6 @@
     <string name="close">閉じる</string>
 
     <!-- Content descriptions -->
-    <string name="cd_create_agent">エージェントを作成</string>
-    <string name="cd_search">検索</string>
     <string name="cd_back">戻る</string>
     <string name="cd_more_actions">その他の操作</string>
     <string name="cd_more_options">その他のオプション</string>
@@ -34,11 +32,26 @@
     <!-- Marketplace screen -->
     <string name="search_agents_hint">エージェントを検索…</string>
     <string name="no_agents_found">エージェントが見つかりません</string>
-    <string name="no_agents_available">利用可能なエージェントがありません</string>
     <string name="agents_not_available_title">エージェントを利用できません</string>
     <string name="agents_not_available_description">サーバー管理者がお使いのアカウントでエージェントを無効にしています。</string>
     <string name="try_different_search">別の検索語をお試しください</string>
     <string name="check_back_later">新しいエージェントについては後でもう一度ご確認ください</string>
+    <string name="agents_chip_top_picks">おすすめ</string>
+    <string name="agents_chip_all">すべて</string>
+    <string name="agents_chip_editable">編集可能</string>
+    <string name="agents_top_pick">おすすめ</string>
+    <string name="agents_new_agent">新しいエージェント</string>
+    <string name="agent_unnamed">名前のないエージェント</string>
+    <string name="agents_clear_search">検索をクリア</string>
+    <string name="agents_no_matches_in">%1$sでは一致するエージェントが見つかりません</string>
+    <string name="agents_none_in">%1$sにエージェントはありません</string>
+    <string name="agents_search_all">すべてのエージェントを検索</string>
+    <string name="agents_show_all">すべてのエージェントを表示</string>
+    <string name="agents_empty_title">エージェントはまだありません</string>
+    <string name="agents_empty_description_create">独自の指示、モデル、ツールを持つエージェントを作成しましょう。</string>
+    <string name="agents_load_failed">エージェントを読み込めませんでした</string>
+    <string name="agents_load_more_failed">続きのエージェントを読み込めませんでした</string>
+    <string name="agents_retry">再試行</string>
     <string name="error_unknown">不明なエラーが発生しました</string>
     <string name="unknown_author">不明</string>
 
@@ -47,12 +60,8 @@
     <string name="delete_agent">エージェントを削除</string>
     <string name="delete_agent_confirm">「%1$s」を削除してもよろしいですか？この操作は取り消せません。</string>
     <string name="delete_this_agent">このエージェント</string>
-    <string name="by_author">作成者: %1$s</string>
-    <string name="label_description">説明</string>
-    <string name="no_description">説明なし</string>
     <string name="label_category">カテゴリ</string>
     <string name="label_model">モデル</string>
-    <string name="default_value">デフォルト</string>
     <string name="label_tools">ツール</string>
     <string name="label_conversation_starters">会話のきっかけ</string>
 
@@ -322,4 +331,20 @@
     <string name="agent_category_roleplay">ロールプレイ</string>
     <string name="visibility_team">チーム</string>
     <string name="agent_contact_line">連絡先：%1$s</string>
+    <string name="agent_pin">モデルメニューにピン留め</string>
+    <string name="agent_unpin">モデルメニューのピン留めを外す</string>
+    <string name="agent_copy_link">リンクをコピー</string>
+    <string name="agent_link_copied">リンクをコピーしました</string>
+    <string name="agent_updated_relative">更新: %1$s</string>
+    <string name="agent_updated_on">更新日: %1$s</string>
+    <string name="agent_public">公開</string>
+    <string name="agent_try_asking">質問の例</string>
+    <string name="agent_load_failed">このエージェントを読み込めませんでした</string>
+    <string name="agent_delete_failed">このエージェントを削除できませんでした</string>
+    <string name="agent_duplicate_failed">このエージェントを複製できませんでした</string>
+    <string name="agent_pin_failed">ピン留めを更新できませんでした</string>
+    <string name="agent_contact_send_email">メールを送信</string>
+    <plurals name="agent_pin_limit">
+        <item quantity="other">お気に入りは最大%1$d件までピン留めできます。</item>
+    </plurals>
 </resources>

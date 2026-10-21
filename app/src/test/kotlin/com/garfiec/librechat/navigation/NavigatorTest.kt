@@ -2,6 +2,8 @@ package com.garfiec.librechat.navigation
 
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
+import com.garfiec.librechat.feature.agents.navigation.AgentDetail
+import com.garfiec.librechat.feature.agents.navigation.AgentEditorEdit
 import com.garfiec.librechat.feature.agents.navigation.AgentMarketplace
 import com.garfiec.librechat.feature.auth.navigation.AddAccountLogin
 import com.garfiec.librechat.feature.auth.navigation.AddAccountServerUrl
@@ -441,5 +443,52 @@ class NavigatorTest {
         navigator.remove(landing)
 
         assertEquals(listOf<NavKey>(landing), navigator.backStack.toList())
+    }
+
+    @Test
+    fun `remove leaves the stack alone once the screen is gone`() {
+        // The editor's save lands after the user left it for a chat through the drawer.
+        val navigator = createNavigator(NewChat(), Chat("c1"))
+
+        navigator.remove(AgentEditorEdit("a1"))
+
+        assertEquals(listOf(NewChat(), Chat("c1")), navigator.backStack.toList())
+    }
+
+    @Test
+    fun `remove takes the editor out from under a screen opened over it`() {
+        val navigator = createNavigator(AgentMarketplace, AgentDetail("a1"), AgentEditorEdit("a1"), Search(""))
+
+        navigator.remove(AgentEditorEdit("a1"))
+
+        assertEquals(listOf(AgentMarketplace, AgentDetail("a1"), Search("")), navigator.backStack.toList())
+    }
+
+    @Test
+    fun `replace swaps the screen on top for its replacement`() {
+        val navigator = createNavigator(NewChat(), AgentMarketplace, AgentDetail("a1"))
+
+        navigator.replace(AgentDetail("a1"), AgentDetail("copy"))
+
+        assertEquals(listOf(NewChat(), AgentMarketplace, AgentDetail("copy")), navigator.backStack.toList())
+    }
+
+    @Test
+    fun `replace leaves the stack alone once the user has left the screen`() {
+        // Back from the agent page, then the duplicate lands during the page's exit animation.
+        val navigator = createNavigator(NewChat(), AgentMarketplace)
+
+        navigator.replace(AgentDetail("a1"), AgentDetail("copy"))
+
+        assertEquals(listOf(NewChat(), AgentMarketplace), navigator.backStack.toList())
+    }
+
+    @Test
+    fun `replace leaves the stack alone when another screen is on top of it`() {
+        val navigator = createNavigator(AgentMarketplace, AgentDetail("a1"), NewChat("a1"))
+
+        navigator.replace(AgentDetail("a1"), AgentDetail("copy"))
+
+        assertEquals(listOf(AgentMarketplace, AgentDetail("a1"), NewChat("a1")), navigator.backStack.toList())
     }
 }
