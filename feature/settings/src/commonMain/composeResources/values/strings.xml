@@ -317,8 +317,8 @@
     <string name="latex_native_desc">Shows raw LaTeX source for better scroll performance</string>
     <string name="auto_scroll">Auto-scroll during streaming</string>
     <string name="auto_scroll_desc">Automatically scroll to new content while a response is being generated</string>
-    <string name="show_thinking_blocks">Show thinking blocks</string>
-    <string name="show_thinking_blocks_desc">Display model reasoning steps when available</string>
+    <string name="thinking_open_by_default">Open thinking by default</string>
+    <string name="thinking_open_by_default_desc">Start a reply's reasoning expanded instead of collapsed</string>
     <string name="context_bar_title">Context usage</string>
     <string name="context_bar_desc">Where to show the context-window usage gauge</string>
     <string name="context_bar_hidden">Hidden</string>

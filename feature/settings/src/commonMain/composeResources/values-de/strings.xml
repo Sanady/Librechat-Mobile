@@ -308,8 +308,8 @@
     <string name="latex_native_desc">Zeigt rohen LaTeX-Quelltext für bessere Scroll-Leistung</string>
     <string name="auto_scroll">Automatisches Scrollen beim Streaming</string>
     <string name="auto_scroll_desc">Automatisch zu neuen Inhalten scrollen, während eine Antwort generiert wird</string>
-    <string name="show_thinking_blocks">Denkblöcke anzeigen</string>
-    <string name="show_thinking_blocks_desc">Schritte des Modell-Reasonings anzeigen, sofern verfügbar</string>
+    <string name="thinking_open_by_default">Denkblöcke standardmäßig öffnen</string>
+    <string name="thinking_open_by_default_desc">Das Reasoning einer Antwort ausgeklappt statt eingeklappt anzeigen</string>
     <string name="context_bar_title">Kontextauslastung</string>
     <string name="context_bar_desc">Wo die Anzeige der Kontextfenster-Auslastung erscheint</string>
     <string name="context_bar_hidden">Ausgeblendet</string>

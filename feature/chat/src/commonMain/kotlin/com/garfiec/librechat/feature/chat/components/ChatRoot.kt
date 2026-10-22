@@ -79,6 +79,8 @@ fun ChatRoot(
      * defaulted, so neither platform's `ChatScreen` can quietly drop the wiring.
      */
     onOpenMemories: (() -> Unit)?,
+    /** Required, not defaulted, so a screen cannot quietly leave the setting unread again (#586). */
+    thinkingOpenByDefault: Boolean,
     content: @Composable () -> Unit,
 ) {
     // Driven from the chat screen's composition rather than a ViewModel collector, which defers the
@@ -142,6 +144,7 @@ fun ChatRoot(
         LocalSubagentThreadsAvailable provides (conversationId != null && subagentThreadsSupported),
         LocalSiteIcons provides siteIconsLocal,
         LocalOpenMemories provides onOpenMemories,
+        LocalThinkingOpenByDefault provides thinkingOpenByDefault,
     ) {
         // Remembered outside the viewer so the save/share coroutine scope (and the permission
         // launcher) live as long as the chat screen, not just while the viewer is open — a

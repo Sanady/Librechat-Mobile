@@ -37,7 +37,7 @@ import org.jetbrains.compose.resources.stringResource
 internal fun ChatSettingsSection(
     fontSize: ChatFontSize,
     autoScrollEnabled: Boolean,
-    showThinkingBlocks: Boolean,
+    thinkingOpenByDefault: Boolean,
     contextUsageSummary: String,
     duringRunAction: DuringRunAction,
     uploadRoutingMode: UploadRoutingMode,
@@ -51,7 +51,7 @@ internal fun ChatSettingsSection(
     chatHeaderContent: ChatHeaderContent,
     chatHeaderAlignment: ChatHeaderAlignment,
     onAutoScrollChange: (Boolean) -> Unit,
-    onShowThinkingChange: (Boolean) -> Unit,
+    onThinkingOpenByDefaultChange: (Boolean) -> Unit,
     onShowImageDescriptionsChange: (Boolean) -> Unit,
     onShowSiteIconsChange: (Boolean) -> Unit,
     onDismissKeyboardOnSendChange: (Boolean) -> Unit,
@@ -100,10 +100,10 @@ internal fun ChatSettingsSection(
                 )
 
                 ToggleRow(
-                    title = stringResource(Res.string.show_thinking_blocks),
-                    description = stringResource(Res.string.show_thinking_blocks_desc),
-                    checked = showThinkingBlocks,
-                    onChange = onShowThinkingChange,
+                    title = stringResource(Res.string.thinking_open_by_default),
+                    description = stringResource(Res.string.thinking_open_by_default_desc),
+                    checked = thinkingOpenByDefault,
+                    onChange = onThinkingOpenByDefaultChange,
                 )
 
                 ToggleRow(

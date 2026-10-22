@@ -308,8 +308,8 @@
     <string name="latex_native_desc">Affiche la source LaTeX brute pour de meilleures performances de défilement</string>
     <string name="auto_scroll">Défilement automatique pendant le streaming</string>
     <string name="auto_scroll_desc">Faire défiler automatiquement vers le nouveau contenu pendant la génération d'une réponse</string>
-    <string name="show_thinking_blocks">Afficher les blocs de réflexion</string>
-    <string name="show_thinking_blocks_desc">Afficher les étapes de raisonnement du modèle lorsqu'elles sont disponibles</string>
+    <string name="thinking_open_by_default">Ouvrir la réflexion par défaut</string>
+    <string name="thinking_open_by_default_desc">Afficher le raisonnement d'une réponse déplié plutôt que replié</string>
     <string name="context_bar_title">Utilisation du contexte</string>
     <string name="context_bar_desc">Où afficher la jauge d'utilisation de la fenêtre de contexte</string>
     <string name="context_bar_hidden">Masquée</string>

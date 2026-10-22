@@ -403,7 +403,8 @@ class ChatViewModel(
         baseChatPrefs,
         sttAndRendererPrefs,
         siteIconsState,
-    ) { base, sttRenderer, siteIcons ->
+        settingsDataStore.thinkingOpenByDefault,
+    ) { base, sttRenderer, siteIcons, thinkingOpen ->
         ChatPreferences(
             showImageDescriptions = base.showImageDescriptions,
             dismissKeyboardOnSend = base.dismissKeyboardOnSend,
@@ -415,6 +416,7 @@ class ChatViewModel(
             sttEngine = sttRenderer.sttEngine,
             sttLanguage = sttRenderer.sttLanguage,
             inlineArtifactPrefs = sttRenderer.inlineArtifactPrefs,
+            thinkingOpenByDefault = thinkingOpen,
             siteIcons = siteIcons,
         )
     }.stateIn(

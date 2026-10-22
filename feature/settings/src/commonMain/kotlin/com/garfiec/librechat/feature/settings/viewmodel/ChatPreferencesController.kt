@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 private data class DataStorePreferences(
     val chatFontSize: ChatFontSize,
     val autoScrollEnabled: Boolean,
-    val showThinkingBlocks: Boolean,
+    val thinkingOpenByDefault: Boolean,
 )
 
 /** Extra DataStore preferences (separate combine since Kotlin combine maxes at 5). */
@@ -85,17 +85,17 @@ class ChatPreferencesController(
     private val dataStorePreferences: StateFlow<DataStorePreferences> = combine(
         settingsDataStore.chatFontSize,
         settingsDataStore.autoScrollEnabled,
-        settingsDataStore.showThinkingBlocks,
-    ) { fontSize, autoScroll, showThinking ->
+        settingsDataStore.thinkingOpenByDefault,
+    ) { fontSize, autoScroll, thinkingOpen ->
         DataStorePreferences(
             chatFontSize = fontSize,
             autoScrollEnabled = autoScroll,
-            showThinkingBlocks = showThinking,
+            thinkingOpenByDefault = thinkingOpen,
         )
     }.stateIn(scope, SharingStarted.Eagerly, DataStorePreferences(
         chatFontSize = ChatFontSize.MEDIUM,
         autoScrollEnabled = true,
-        showThinkingBlocks = true,
+        thinkingOpenByDefault = false,
     ))
 
     private val extraPreferences: StateFlow<ExtraPreferences> = combine(
@@ -206,7 +206,7 @@ class ChatPreferencesController(
         state.copy(
             chatFontSize = prefs.chatFontSize,
             autoScrollEnabled = prefs.autoScrollEnabled,
-            showThinkingBlocks = prefs.showThinkingBlocks,
+            thinkingOpenByDefault = prefs.thinkingOpenByDefault,
             autoReadEnabled = extra.autoRead,
             selectedVoice = selectedVoice,
             showImageDescriptions = extra.showImageDescriptions,
@@ -259,8 +259,8 @@ class ChatPreferencesController(
         scope.launch { settingsDataStore.setAutoScrollEnabled(enabled) }
     }
 
-    fun setShowThinkingBlocks(show: Boolean) {
-        scope.launch { settingsDataStore.setShowThinkingBlocks(show) }
+    fun setThinkingOpenByDefault(open: Boolean) {
+        scope.launch { settingsDataStore.setThinkingOpenByDefault(open) }
     }
 
     fun setContextBarPlacement(placement: ContextBarPlacement) {

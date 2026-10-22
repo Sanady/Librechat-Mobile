@@ -332,8 +332,8 @@
     <string name="latex_native_desc">يعرض مصدر LaTeX الخام لأداء تمرير أفضل</string>
     <string name="auto_scroll">التمرير التلقائي أثناء البث</string>
     <string name="auto_scroll_desc">التمرير تلقائيًا إلى المحتوى الجديد أثناء إنشاء الرد</string>
-    <string name="show_thinking_blocks">إظهار كتل التفكير</string>
-    <string name="show_thinking_blocks_desc">عرض خطوات استدلال النموذج عند توفّرها</string>
+    <string name="thinking_open_by_default">فتح التفكير افتراضيًا</string>
+    <string name="thinking_open_by_default_desc">عرض استدلال الرد موسّعًا بدلًا من مطويًا</string>
     <string name="context_bar_title">استخدام السياق</string>
     <string name="context_bar_desc">مكان عرض مؤشر استخدام نافذة السياق</string>
     <string name="context_bar_hidden">مخفي</string>

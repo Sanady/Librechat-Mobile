@@ -24,7 +24,8 @@ data class ChatSettingsUiState(
     // Chat preferences
     val chatFontSize: ChatFontSize = ChatFontSize.MEDIUM,
     val autoScrollEnabled: Boolean = true,
-    val showThinkingBlocks: Boolean = true,
+    /** Whether a reply's reasoning block starts expanded; the block itself is always shown. */
+    val thinkingOpenByDefault: Boolean = false,
     val contextBarPlacement: ContextBarPlacement = ContextBarPlacement.OPTIONS_SHEET,
     /** What the composer's send does mid-run (v0.8.8 steering): inject into the running reply,
      *  or queue for after it. Honoured only where the server supports steering. */

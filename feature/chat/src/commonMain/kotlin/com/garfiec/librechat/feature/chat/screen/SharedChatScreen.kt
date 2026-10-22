@@ -123,6 +123,7 @@ internal data class SharedChatDisplay(
     val useKatex: Boolean = true,
     val inlineArtifactPrefs: InlineArtifactPrefs = InlineArtifactPrefs(),
     val siteIcons: SiteIconsState = SiteIconsState.OFF,
+    val thinkingOpenByDefault: Boolean = false,
 )
 
 internal class SharedChatActions(
@@ -220,6 +221,7 @@ fun SharedChatScreen(
         promptLibraryRevision = 0L,
         onRefreshPrompts = {},
         siteIcons = display.siteIcons,
+        thinkingOpenByDefault = display.thinkingOpenByDefault,
         onSiteIconsChoice = rememberSiteIconsChoice(),
         onSiteIconsPromptDismiss = koinInject<SiteIconPromptSession>()::dismiss,
         // The memories shown are the sharer's, not the viewer's: no Manage.
@@ -512,6 +514,7 @@ private fun rememberSharedChatDisplay(): SharedChatDisplay {
     val imageDescriptions by settings.showImageDescriptions.collectAsStateWithLifecycle(false)
     val latex by settings.latexRenderer.collectAsStateWithLifecycle(LatexRenderer.KATEX)
     val inlineArtifacts by settings.inlineArtifactPrefs.collectAsStateWithLifecycle(InlineArtifactPrefs())
+    val thinkingOpen by settings.thinkingOpenByDefault.collectAsStateWithLifecycle(false)
     val siteIconsChoice by preferences.observe(AppPreferences.SiteIcons)
         .collectAsStateWithLifecycle(preferences.initial(AppPreferences.SiteIcons))
     val promptDismissed by promptSession.dismissed.collectAsStateWithLifecycle()
@@ -527,6 +530,7 @@ private fun rememberSharedChatDisplay(): SharedChatDisplay {
         showImageDescriptions = imageDescriptions,
         useKatex = latex == LatexRenderer.KATEX,
         inlineArtifactPrefs = inlineArtifacts,
+        thinkingOpenByDefault = thinkingOpen,
         siteIcons = when (siteIconsChoice) {
             true -> SiteIconsState.ON
             false -> SiteIconsState.OFF
