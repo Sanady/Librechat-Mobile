@@ -178,6 +178,7 @@ internal class ChatViewModelTestFixture {
         every { settingsDataStore.compactNudgeThreshold } returns MutableStateFlow(DEFAULT_COMPACT_NUDGE_THRESHOLD)
         every { settingsDataStore.compactNudgeSnoozes } returns MutableStateFlow(emptyMap())
         every { preferenceStore.observe(AppPreferences.SiteIcons) } returns MutableStateFlow(null)
+        every { preferenceStore.observe(AppPreferences.PreferLastUsedModel) } returns MutableStateFlow(false)
         every { preferenceStore.initial(AppPreferences.SiteIcons) } returns null
         every { settingsDataStore.duringRunAction } returns MutableStateFlow(DuringRunAction.QUEUE)
         // A real slot map rather than a relaxed Flow, so a toggle written here reads back.

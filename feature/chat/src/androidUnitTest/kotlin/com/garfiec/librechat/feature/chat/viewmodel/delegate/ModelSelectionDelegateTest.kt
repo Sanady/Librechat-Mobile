@@ -74,6 +74,7 @@ class ModelSelectionDelegateTest {
     private val availableModels = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     private val endpointConfigs = MutableStateFlow<Map<String, EndpointConfig>>(emptyMap())
     private val startupConfig = MutableStateFlow<StartupConfig?>(null)
+    private val preferLastUsed = MutableStateFlow(false)
 
     private val configRepository = mockk<ConfigRepository>(relaxed = true).also {
         every { it.availableModels } returns availableModels
@@ -135,6 +136,7 @@ class ModelSelectionDelegateTest {
         settingsDataStore = settingsDataStore,
         permissionGate = permissionGate,
         connectivityObserver = connectivityObserver,
+        preferLastUsedModel = preferLastUsed,
         initialAgentId = initialAgentId,
         initialEndpoint = initialEndpoint,
         initialModel = initialModel,
@@ -2009,5 +2011,426 @@ class ModelSelectionDelegateTest {
         assertThat(handle.state.selectedModel).isEqualTo("agent_w")
         assertThat(handle.state.selectedSpec).isEqualTo("writer")
         coVerify(exactly = 1) { settingsDataStore.setLastUsedModel(EndpointConstants.AGENTS, "agent_w", "writer") }
+    }
+
+    // ── Group H: "Start new chats on: My last-used model" (#552) ─────────────
+
+    @Test
+    fun preferLastUsedOpensOnRawLastUsedUnderPrioritize() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle)
+        preferLastUsed.value = true
+        rawLastUsed()
+        startupConfig.value = specConfig(modelSpec("marked", "gpt-4.1", isDefault = true), prioritize = true)
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4o")
+        assertThat(handle.state.selectedSpec).isNull()
+    }
+
+    @Test
+    fun preferLastUsedReopensLastSpecOverADefaultSpec() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle)
+        preferLastUsed.value = true
+        val marked = modelSpec("marked", "gpt-4o", isDefault = true)
+        val picked = modelSpec("picked", "gpt-4.1")
+        rawLastUsed()
+        specLastUsed(picked)
+        startupConfig.value = specConfig(marked, picked, prioritize = true)
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedSpec).isEqualTo("picked")
+    }
+
+    @Test
+    fun preferLastUsedFallsBackToTheSpecWhenLastUsedIsStale() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle)
+        preferLastUsed.value = true
+        rawLastUsed()
+        lastUsedModel.value = "gpt-3"
+        startupConfig.value = specConfig(modelSpec("marked", "gpt-4.1", isDefault = true), prioritize = true)
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedSpec).isEqualTo("marked")
+    }
+
+    @Test
+    fun preferLastUsedIsIgnoredWithModelSelectOff() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle)
+        preferLastUsed.value = true
+        rawLastUsed()
+        startupConfig.value = specConfig(modelSpec("marked", "gpt-4.1"), prioritize = null, modelSelect = false)
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedSpec).isEqualTo("marked")
+    }
+
+    @Test
+    fun preferLastUsedSkipsARawLastUsedUnderEnforce() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle)
+        preferLastUsed.value = true
+        rawLastUsed()
+        startupConfig.value = StartupConfig(
+            modelSpecs = ModelSpecs(
+                list = listOf(modelSpec("marked", "gpt-4.1", isDefault = true)),
+                enforce = true,
+                addedEndpoints = listOf("openAI"),
+                prioritize = true,
+            ),
+        )
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedSpec).isEqualTo("marked")
+    }
+
+    @Test
+    fun preferLastUsedKeepsALastSpecUnderEnforce() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle)
+        preferLastUsed.value = true
+        val marked = modelSpec("marked", "gpt-4o", isDefault = true)
+        val picked = modelSpec("picked", "gpt-4.1")
+        rawLastUsed()
+        specLastUsed(picked)
+        startupConfig.value = StartupConfig(
+            modelSpecs = ModelSpecs(list = listOf(marked, picked), enforce = true, prioritize = true),
+        )
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedSpec).isEqualTo("picked")
+    }
+
+    @Test
+    fun togglingPreferLastUsedMovesTheOpenLanding() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle)
+        rawLastUsed()
+        startupConfig.value = specConfig(modelSpec("marked", "gpt-4.1", isDefault = true), prioritize = true)
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+        assertThat(handle.state.selectedSpec).isEqualTo("marked")
+
+        preferLastUsed.value = true
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4o")
+        assertThat(handle.state.selectedSpec).isNull()
+
+        preferLastUsed.value = false
+        advanceUntilIdle()
+        assertThat(handle.state.selectedSpec).isEqualTo("marked")
+        coVerify(exactly = 0) { settingsDataStore.setLastUsedModel(any(), any(), any()) }
+    }
+
+    @Test
+    fun togglingPreferLastUsedKeepsAStartChatOverride() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle, initialEndpoint = "openAI", initialModel = "gpt-4.1")
+        rawLastUsed()
+        startupConfig.value = specConfig(modelSpec("marked", "gpt-4o", isDefault = true), prioritize = true)
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+
+        preferLastUsed.value = true
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+
+        preferLastUsed.value = false
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+    }
+
+    @Test
+    fun togglingPreferLastUsedWithoutSpecsLeavesTheLanding() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle, initialEndpoint = "openAI", initialModel = "gpt-4.1")
+        rawLastUsed()
+        startupConfig.value = StartupConfig()
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+
+        preferLastUsed.value = true
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+    }
+
+    /** Starts the landing's chat, then resets the landing for the next new chat, as the handoff does. */
+    private fun TestScope.handOff(handle: ChatStateHandle, delegate: ModelSelectionDelegate) {
+        handle.update { copy(conversation = conversation.copy(conversationId = "c1")) }
+        advanceUntilIdle()
+        delegate.rearmModelSpecDefault()
+        handle.update { copy(conversation = conversation.copy(conversationId = null)) }
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun startChatOverrideLastsOneChatUnderPreferLastUsed() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle, initialEndpoint = "openAI", initialModel = "gpt-4.1")
+        preferLastUsed.value = true
+        rawLastUsed()
+        startupConfig.value = specConfig(modelSpec("marked", "gpt-4o", isDefault = true), prioritize = true)
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+
+        handOff(handle, delegate)
+
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4o")
+        assertThat(handle.state.selectedSpec).isNull()
+    }
+
+    @Test
+    fun startChatOverrideLastsOneChatWithoutSpecs() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle, initialEndpoint = "openAI", initialModel = "gpt-4.1")
+        rawLastUsed()
+        startupConfig.value = StartupConfig()
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+
+        handOff(handle, delegate)
+
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4o")
+    }
+
+    /** Last-used on anthropic, which the spec config's `addedEndpoints` no longer lists. */
+    private fun hiddenLastUsed() {
+        lastUsedEndpoint.value = "anthropic"
+        lastUsedModel.value = "claude"
+        availableModels.value = mapOf("openAI" to listOf("gpt-4o", "gpt-4.1"), "anthropic" to listOf("claude"))
+    }
+
+    @Test
+    fun preferLastUsedSkipsALastUsedOnAHiddenEndpoint() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle)
+        preferLastUsed.value = true
+        hiddenLastUsed()
+        startupConfig.value = StartupConfig(
+            modelSpecs = ModelSpecs(
+                list = listOf(modelSpec("marked", "gpt-4.1", isDefault = true)),
+                addedEndpoints = listOf("openAI"),
+                prioritize = true,
+            ),
+        )
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedSpec).isEqualTo("marked")
+    }
+
+    @Test
+    fun softSpecBeatsALastUsedOnAHiddenEndpoint() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle)
+        hiddenLastUsed()
+        startupConfig.value = StartupConfig(
+            modelSpecs = ModelSpecs(
+                list = listOf(modelSpec("soft", "gpt-4.1", softDefault = true)),
+                addedEndpoints = listOf("openAI"),
+                prioritize = false,
+            ),
+        )
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedSpec).isEqualTo("soft")
+    }
+
+    @Test
+    fun presetLoadedOnTheLandingKeepsOverThePrioritizedSpec() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle)
+        rawLastUsed()
+        startupConfig.value = specConfig(modelSpec("marked", "gpt-4o", isDefault = true), prioritize = true)
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+        assertThat(handle.state.selectedSpec).isEqualTo("marked")
+
+        // PresetPromptDelegate writes the preset's choice straight to state.
+        handle.update { copy(selection = selection.copy(choice = ModelChoice.Raw("openAI", "gpt-4.1"))) }
+        // A models refresh re-runs the seeder.
+        availableModels.value = mapOf("openAI" to listOf("gpt-4o", "gpt-4.1", "gpt-5"))
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+        assertThat(handle.state.selectedSpec).isNull()
+    }
+
+    @Test
+    fun preferLastUsedFallsBackToTheSpecWhenLastUsedEndpointListsNoModels() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle)
+        preferLastUsed.value = true
+        lastUsedEndpoint.value = "openAI"
+        lastUsedModel.value = "gpt-4o"
+        // openAI is still configured, but its model list came back empty (a revoked key).
+        endpointConfigs.value = mapOf("openAI" to EndpointConfig(), "google" to EndpointConfig())
+        availableModels.value = mapOf("openAI" to emptyList(), "google" to listOf("gemini"))
+        val marked = ModelSpec(
+            name = "marked",
+            preset = Preset(endpoint = "google", model = "gemini"),
+            isDefault = true,
+        )
+        startupConfig.value = specConfig(marked, prioritize = true)
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedSpec).isEqualTo("marked")
+    }
+
+    @Test
+    fun startChatOverrideWithStaleLastUsedHandsTheNextChatToTheSpec() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle, initialEndpoint = "openAI", initialModel = "gpt-4.1")
+        preferLastUsed.value = true
+        rawLastUsed()
+        lastUsedModel.value = "gpt-3"
+        startupConfig.value = specConfig(modelSpec("marked", "gpt-4o", isDefault = true), prioritize = true)
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+
+        handOff(handle, delegate)
+
+        assertThat(handle.state.selectedSpec).isEqualTo("marked")
+    }
+
+    @Test
+    fun startChatOverrideWithNoLastUsedHandsTheNextChatToTheFirstModel() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle, initialEndpoint = "openAI", initialModel = "gpt-4.1")
+        availableModels.value = mapOf("openAI" to listOf("gpt-4o", "gpt-4.1"))
+        startupConfig.value = StartupConfig()
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+
+        handOff(handle, delegate)
+
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4o")
+    }
+
+    @Test
+    fun startChatLinkYieldsToTheSpecWithModelSelectOff() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle, initialEndpoint = "openAI", initialModel = "gpt-4.1")
+        rawLastUsed()
+        startupConfig.value = specConfig(modelSpec("marked", "gpt-4o"), prioritize = null, modelSelect = false)
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedSpec).isEqualTo("marked")
+    }
+
+    @Test
+    fun startChatLinkBeforeTheConfigHandsBackToTheSpecWithModelSelectOff() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle, initialEndpoint = "openAI", initialModel = "gpt-4.1")
+        rawLastUsed()
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+
+        startupConfig.value = specConfig(modelSpec("marked", "gpt-4o"), prioritize = null, modelSelect = false)
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedSpec).isEqualTo("marked")
+    }
+
+    @Test
+    fun rawLastUsedStillBacksAnUnusableSpecWithModelSelectOff() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope, uiState(selectedEndpoint = "openAI"))
+        val delegate = newDelegate(handle)
+        rawLastUsed()
+        lastUsedModel.value = "gpt-4.1"
+        // The only spec can't apply (its agent is gone): web falls back to the last setup, not the
+        // first model.
+        agentsReturn("agent_other")
+        startupConfig.value = specConfig(agentSpec("agent_gone", isDefault = true), modelSelect = false)
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        delegate.loadAgents(isNewConversation = true)
+        advanceUntilIdle()
+
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+    }
+
+    @Test
+    fun presetLoadedWhileItsModelsLoadIsNotReplacedByLastUsed() = runTest {
+        val scope = TestScope(StandardTestDispatcher(testScheduler))
+        val handle = newHandle(scope)
+        val delegate = newDelegate(handle)
+        lastUsedEndpoint.value = EndpointConstants.AGENTS
+        lastUsedModel.value = "agent_1"
+        agentsReturn("agent_1")
+        startupConfig.value = StartupConfig()
+
+        delegate.seedInitialSelection(isNewConversation = true)
+        delegate.loadAgents(isNewConversation = true)
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("agent_1")
+
+        // A preset on openAI, whose models haven't arrived; then the endpoint configs land.
+        handle.update { copy(selection = selection.copy(choice = ModelChoice.Raw("openAI", "gpt-4.1"))) }
+        endpointConfigs.value = mapOf("openAI" to EndpointConfig())
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
+
+        availableModels.value = mapOf("openAI" to listOf("gpt-4o", "gpt-4.1"))
+        advanceUntilIdle()
+        assertThat(handle.state.selectedModel).isEqualTo("gpt-4.1")
     }
 }

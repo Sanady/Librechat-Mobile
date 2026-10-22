@@ -179,10 +179,16 @@ class PresetPromptDelegate(
                 ?.let { name -> specs?.list?.find { it.name == name }?.toSeed() }
             val endpoint = specSeed?.endpoint ?: preset.endpoint ?: selection.selectedEndpoint
             val model = specSeed?.model ?: preset.model ?: selection.selectedModel
+            // A preset carrying only parameters leaves the selection, spec included, as it is.
+            val namesNoModel = preset.spec == null && preset.endpoint == null && preset.model == null
             selection = selection.copy(
                 // The spec is kept only while the server still offers it on that pair: a retargeted
                 // spec fails every send with "Model spec mismatch". Unchecked before the spec config loads.
-                choice = preset.spec.offeredOrUnchecked(endpoint, model, specs, checkable = specs != null),
+                choice = if (namesNoModel) {
+                    selection.choice
+                } else {
+                    preset.spec.offeredOrUnchecked(endpoint, model, specs, checkable = specs != null)
+                },
                 // Authoritative load: a preset represents a complete saved
                 // configuration. Merging from current parameters would let
                 // unrelated fields (e.g. a temperature from the previous

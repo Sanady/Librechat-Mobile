@@ -257,6 +257,7 @@ class ChatViewModel(
         settingsDataStore = settingsDataStore,
         permissionGate = permissionGate,
         connectivityObserver = connectivityObserver,
+        preferLastUsedModel = preferenceStore.observe(AppPreferences.PreferLastUsedModel),
         initialAgentId = initialAgentId,
         initialEndpoint = initialEndpoint,
         initialModel = initialModel,
@@ -1491,7 +1492,8 @@ class ChatViewModel(
         _uiState.update {
             it.copy(
                 composer = it.composer.copy(sendBlockReason = reason ?: it.sendBlockReason),
-                selection = it.selection.copy(showModelSheet = true),
+                // No picker on a server that hides it and offers no specs; the reason still shows.
+                selection = it.selection.copy(showModelSheet = it.modelPickerShown),
             )
         }
     }
