@@ -46,6 +46,7 @@ class ChatViewModelSiteIconsTest {
         every { settingsDataStore.sttEngine } returns MutableStateFlow("")
         every { settingsDataStore.sttLanguage } returns MutableStateFlow("")
         every { settingsDataStore.inlineArtifactPrefs } returns MutableStateFlow(InlineArtifactPrefs())
+        every { settingsDataStore.thinkingOpenByDefault } returns MutableStateFlow(false)
         every { fixture.preferenceStore.observe(AppPreferences.SiteIcons) } returns siteIconsChoice
     }
 

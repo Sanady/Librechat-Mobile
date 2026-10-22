@@ -337,6 +337,7 @@ fun ChatScreen(
         onSiteIconsChoice = viewModel::setShowSiteIcons,
         onSiteIconsPromptDismiss = viewModel::dismissSiteIconPrompt,
         onOpenMemories = onOpenMemories?.takeIf { uiState.gates.memoriesPageEnabled },
+        thinkingOpenByDefault = prefs.thinkingOpenByDefault,
     ) {
     Scaffold(
         modifier = modifier

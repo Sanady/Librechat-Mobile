@@ -50,7 +50,7 @@ class ChatSettingsViewModelTest {
         // Setup DataStore flows
         every { settingsDataStore.chatFontSize } returns MutableStateFlow(ChatFontSize.MEDIUM)
         every { settingsDataStore.autoScrollEnabled } returns MutableStateFlow(true)
-        every { settingsDataStore.showThinkingBlocks } returns MutableStateFlow(true)
+        every { settingsDataStore.thinkingOpenByDefault } returns MutableStateFlow(false)
         every { settingsDataStore.autoReadEnabled } returns MutableStateFlow(false)
         every { settingsDataStore.selectedVoiceId } returns MutableStateFlow(null)
         every { settingsDataStore.showImageDescriptions } returns MutableStateFlow(false)

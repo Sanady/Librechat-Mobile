@@ -308,8 +308,8 @@
     <string name="latex_native_desc">Mostra o código LaTeX bruto para melhor desempenho de rolagem</string>
     <string name="auto_scroll">Rolagem automática durante o streaming</string>
     <string name="auto_scroll_desc">Rolar automaticamente para o novo conteúdo enquanto uma resposta está sendo gerada</string>
-    <string name="show_thinking_blocks">Mostrar blocos de raciocínio</string>
-    <string name="show_thinking_blocks_desc">Exibir as etapas de raciocínio do modelo quando disponíveis</string>
+    <string name="thinking_open_by_default">Abrir o raciocínio por padrão</string>
+    <string name="thinking_open_by_default_desc">Mostrar o raciocínio da resposta expandido em vez de recolhido</string>
     <string name="context_bar_title">Uso do contexto</string>
     <string name="context_bar_desc">Onde mostrar o indicador de uso da janela de contexto</string>
     <string name="context_bar_hidden">Oculto</string>

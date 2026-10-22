@@ -320,8 +320,8 @@
     <string name="latex_native_desc">Показывает исходный код LaTeX для более плавной прокрутки</string>
     <string name="auto_scroll">Автопрокрутка во время потоковой передачи</string>
     <string name="auto_scroll_desc">Автоматически прокручивать к новому содержимому во время генерации ответа</string>
-    <string name="show_thinking_blocks">Показывать блоки размышлений</string>
-    <string name="show_thinking_blocks_desc">Отображать ход рассуждений модели, когда он доступен</string>
+    <string name="thinking_open_by_default">Открывать размышления по умолчанию</string>
+    <string name="thinking_open_by_default_desc">Показывать ход рассуждений ответа развёрнутым, а не свёрнутым</string>
     <string name="context_bar_title">Использование контекста</string>
     <string name="context_bar_desc">Где показывать индикатор заполнения контекстного окна</string>
     <string name="context_bar_hidden">Скрыт</string>

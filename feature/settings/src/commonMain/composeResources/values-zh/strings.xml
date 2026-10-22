@@ -302,8 +302,8 @@
     <string name="latex_native_desc">显示原始 LaTeX 源码以获得更流畅的滚动性能</string>
     <string name="auto_scroll">流式输出时自动滚动</string>
     <string name="auto_scroll_desc">在生成回复时自动滚动到新内容</string>
-    <string name="show_thinking_blocks">显示思考块</string>
-    <string name="show_thinking_blocks_desc">在可用时显示模型的推理步骤</string>
+    <string name="thinking_open_by_default">默认展开思考</string>
+    <string name="thinking_open_by_default_desc">回复的推理默认展开显示，而不是折叠</string>
     <string name="context_bar_title">上下文用量</string>
     <string name="context_bar_desc">上下文窗口用量指示器的显示位置</string>
     <string name="context_bar_hidden">隐藏</string>

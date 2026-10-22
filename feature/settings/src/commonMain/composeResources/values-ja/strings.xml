@@ -302,8 +302,8 @@
     <string name="latex_native_desc">スクロール性能向上のため生のLaTeXソースを表示します</string>
     <string name="auto_scroll">ストリーミング中に自動スクロール</string>
     <string name="auto_scroll_desc">応答の生成中に新しいコンテンツへ自動でスクロールします</string>
-    <string name="show_thinking_blocks">思考ブロックを表示</string>
-    <string name="show_thinking_blocks_desc">利用可能な場合にモデルの推論ステップを表示します</string>
+    <string name="thinking_open_by_default">思考をデフォルトで開く</string>
+    <string name="thinking_open_by_default_desc">返答の推論を折りたたまず展開した状態で表示します</string>
     <string name="context_bar_title">コンテキスト使用量</string>
     <string name="context_bar_desc">コンテキストウィンドウ使用量ゲージの表示場所</string>
     <string name="context_bar_hidden">非表示</string>

@@ -308,8 +308,8 @@
     <string name="latex_native_desc">Muestra el código fuente de LaTeX para un mejor rendimiento de desplazamiento</string>
     <string name="auto_scroll">Desplazamiento automático durante la transmisión</string>
     <string name="auto_scroll_desc">Desplazarse automáticamente al nuevo contenido mientras se genera una respuesta</string>
-    <string name="show_thinking_blocks">Mostrar bloques de razonamiento</string>
-    <string name="show_thinking_blocks_desc">Muestra los pasos de razonamiento del modelo cuando estén disponibles</string>
+    <string name="thinking_open_by_default">Abrir el razonamiento por defecto</string>
+    <string name="thinking_open_by_default_desc">Mostrar el razonamiento de la respuesta expandido en lugar de contraído</string>
     <string name="context_bar_title">Uso del contexto</string>
     <string name="context_bar_desc">Dónde mostrar el indicador de uso de la ventana de contexto</string>
     <string name="context_bar_hidden">Oculto</string>

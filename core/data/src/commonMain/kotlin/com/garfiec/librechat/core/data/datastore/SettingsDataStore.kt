@@ -110,8 +110,15 @@ class SettingsDataStore(
         prefs[KEY_AUTO_SCROLL_ENABLED] ?: true
     }
 
-    val showThinkingBlocks: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[KEY_SHOW_THINKING_BLOCKS] ?: true
+    /**
+     * Whether a reply's reasoning block starts expanded. The web's "Open Thinking Dropdowns by
+     * Default", and like it off by default: hiding reasoning outright was never an option here,
+     * so the block is always shown and this only decides its initial fold. The stored key keeps
+     * its original name; a user who switched it on before it did anything now gets what the
+     * label promises.
+     */
+    val thinkingOpenByDefault: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_SHOW_THINKING_BLOCKS] ?: false
     }
 
     /** Where the v0.8.7 context-usage gauge is surfaced. Default [ContextBarPlacement.OPTIONS_SHEET]. */
@@ -419,9 +426,9 @@ class SettingsDataStore(
         }
     }
 
-    suspend fun setShowThinkingBlocks(show: Boolean) {
+    suspend fun setThinkingOpenByDefault(open: Boolean) {
         dataStore.edit { prefs ->
-            prefs[KEY_SHOW_THINKING_BLOCKS] = show
+            prefs[KEY_SHOW_THINKING_BLOCKS] = open
         }
     }
 

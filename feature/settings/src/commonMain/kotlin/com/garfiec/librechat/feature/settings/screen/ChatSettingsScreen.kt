@@ -144,7 +144,7 @@ fun ChatSettingsContent(
                     ChatSettingsSection(
                         fontSize = uiState.chatFontSize,
                         autoScrollEnabled = uiState.autoScrollEnabled,
-                        showThinkingBlocks = uiState.showThinkingBlocks,
+                        thinkingOpenByDefault = uiState.thinkingOpenByDefault,
                         contextUsageSummary = contextUsageSummary(contextUsage.placement, contextUsage.preset, contextUsage.advanced),
                         onOpenContextUsage = onNavigateToContextUsage,
                         duringRunAction = uiState.duringRunAction,
@@ -160,7 +160,7 @@ fun ChatSettingsContent(
                         chatHeaderContent = uiState.chatHeaderContent,
                         chatHeaderAlignment = uiState.chatHeaderAlignment,
                         onAutoScrollChange = viewModel::setAutoScrollEnabled,
-                        onShowThinkingChange = viewModel::setShowThinkingBlocks,
+                        onThinkingOpenByDefaultChange = viewModel::setThinkingOpenByDefault,
                         onShowImageDescriptionsChange = viewModel::setShowImageDescriptions,
                         onShowSiteIconsChange = viewModel::setShowSiteIcons,
                         onDismissKeyboardOnSendChange = viewModel::setDismissKeyboardOnSend,

@@ -144,7 +144,7 @@ class DataStoreRoundTripTest {
         val store = settingsStore(ds)
 
         assertThat(store.autoScrollEnabled.first()).isTrue()
-        assertThat(store.showThinkingBlocks.first()).isTrue()
+        assertThat(store.thinkingOpenByDefault.first()).isFalse()
         assertThat(store.autoReadEnabled.first()).isFalse()
         assertThat(store.dismissKeyboardOnSend.first()).isTrue()
         assertThat(store.chatFontSize.first()).isEqualTo(ChatFontSize.MEDIUM)
@@ -163,7 +163,7 @@ class DataStoreRoundTripTest {
         val store = settingsStore(ds)
 
         store.setAutoScrollEnabled(false)
-        store.setShowThinkingBlocks(false)
+        store.setThinkingOpenByDefault(true)
         store.setAutoReadEnabled(true)
         store.setDismissKeyboardOnSend(false)
         store.setShowImageDescriptions(true)
@@ -171,7 +171,7 @@ class DataStoreRoundTripTest {
         store.setSttEndOfSpeech(true)
 
         assertThat(store.autoScrollEnabled.first()).isFalse()
-        assertThat(store.showThinkingBlocks.first()).isFalse()
+        assertThat(store.thinkingOpenByDefault.first()).isTrue()
         assertThat(store.autoReadEnabled.first()).isTrue()
         assertThat(store.dismissKeyboardOnSend.first()).isFalse()
         assertThat(store.showImageDescriptions.first()).isTrue()
