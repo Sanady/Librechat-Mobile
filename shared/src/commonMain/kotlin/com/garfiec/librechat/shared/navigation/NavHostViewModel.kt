@@ -332,6 +332,36 @@ class NavHostViewModel(
         }
     }
 
+    private val sharedLinks = SharedLinkStateHolder(
+        scope = viewModelScope,
+        activeAccountProvider = activeAccountProvider,
+        isLoggedIn = { isLoggedIn.value },
+        rosterEntries = { accountRoster.snapshot().entries },
+        hasSession = accountSwitcher::hasSession,
+        switchAccount = accountSwitcher::switch,
+        // A refusal means the row was stale: re-read which accounts still hold a session.
+        onSwitchRefused = { sessionRevision.update { it + 1 } },
+        ioDispatcher = Dispatchers.IO,
+    )
+
+    val sharedLinkOffer: StateFlow<SharedLinkRoute.OfferSwitch?> = sharedLinks.offer
+
+    /** Shared links handed to the browser after an account refused the switch. */
+    val browserLinks: Flow<String> = sharedLinks.browserLinks
+
+    /** See [SharedLinkStateHolder.route]. */
+    suspend fun routeSharedLink(url: String): SharedLinkRoute = sharedLinks.route(url)
+
+    fun offerSharedLinkSwitch(offer: SharedLinkRoute.OfferSwitch) = sharedLinks.offerSwitch(offer)
+
+    fun dismissSharedLinkOffer() = sharedLinks.dismissOffer()
+
+    /** See [SharedLinkStateHolder.acceptSwitch]. */
+    fun acceptSharedLinkSwitch() = sharedLinks.acceptSwitch()
+
+    /** See [SharedLinkStateHolder.takePendingSharedChat]. Call on every account flip. */
+    fun takePendingSharedChat(accountId: String?): String? = sharedLinks.takePendingSharedChat(accountId)
+
     /** Switch the active account (no-op for the already-active one). Post-switch refresh and the
      *  back-stack reset ride on the [accountTransitions] collectors, not this call. An account whose
      *  session has expired is not switched to, since every request on it would 401. */

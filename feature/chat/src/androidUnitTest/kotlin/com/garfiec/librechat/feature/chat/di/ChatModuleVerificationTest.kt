@@ -30,9 +30,12 @@ import com.garfiec.librechat.core.data.repository.SpeechRepository
 import com.garfiec.librechat.core.data.repository.SubagentRepository
 import com.garfiec.librechat.core.data.repository.TraceRepository
 import com.garfiec.librechat.core.data.repository.UserRepository
+import com.garfiec.librechat.core.data.share.ShareLinkControllerFactory
 import com.garfiec.librechat.core.data.update.AppUpdateRepository
 import com.garfiec.librechat.core.data.util.PermissionGate
+import com.garfiec.librechat.core.network.client.ServerUrlProvider
 import com.garfiec.librechat.feature.chat.prompts.PromptsViewModel
+import com.garfiec.librechat.feature.chat.viewmodel.SharedChatViewModel
 import com.garfiec.librechat.feature.chat.viewmodel.SubagentThreadsViewModel
 import com.garfiec.librechat.feature.chat.viewmodel.TraceViewerViewModel
 import com.garfiec.librechat.feature.chat.viewmodel.UpdateBannerViewModel
@@ -43,6 +46,7 @@ import org.junit.Test
 import org.koin.core.Koin
 import org.koin.core.error.InstanceCreationException
 import org.koin.core.error.NoDefinitionFoundException
+import org.koin.core.parameter.parametersOf
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
 import org.koin.test.verify.verify
@@ -74,6 +78,7 @@ class ChatModuleVerificationTest {
                 RoleRepository::class,
                 PermissionGate::class,
                 ShareRepository::class,
+                ShareLinkControllerFactory::class,
                 SubagentRepository::class,
                 TraceRepository::class,
                 SpeechRepository::class,
@@ -82,6 +87,7 @@ class ChatModuleVerificationTest {
                 ConnectivityObserver::class,
                 ActiveAccountProvider::class,
                 ServerDataStore::class,
+                ServerUrlProvider::class,
                 SettingsDataStore::class,
                 PreferenceStore::class,
                 AppUpdateRepository::class,
@@ -109,6 +115,10 @@ class ChatModuleVerificationTest {
                     single<SubagentRepository> { mockk(relaxed = true) }
                     single<TraceRepository> { mockk(relaxed = true) }
                     single<AppUpdateRepository> { mockk(relaxed = true) }
+                    single<ShareRepository> { mockk(relaxed = true) }
+                    single<ConversationRepository> { mockk(relaxed = true) }
+                    single<ActiveAccountProvider> { mockk(relaxed = true) }
+                    single<ServerUrlProvider> { mockk(relaxed = true) }
                 },
             )
         }.koin
@@ -117,6 +127,10 @@ class ChatModuleVerificationTest {
         assertTrue(koin.hasDefinitionFor { koin.get<SubagentThreadsViewModel>() }, "SubagentThreadsViewModel")
         assertTrue(koin.hasDefinitionFor { koin.get<TraceViewerViewModel>() }, "TraceViewerViewModel")
         assertTrue(koin.hasDefinitionFor { koin.get<UpdateBannerViewModel>() }, "UpdateBannerViewModel")
+        assertTrue(
+            koin.hasDefinitionFor { koin.get<SharedChatViewModel> { parametersOf("share-1") } },
+            "SharedChatViewModel",
+        )
     }
 
     /**

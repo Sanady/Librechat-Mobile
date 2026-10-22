@@ -101,6 +101,10 @@ fun MessageList(
      * nothing until it ends, so they would do nothing.
      */
     canResubmit: Boolean = true,
+    /**
+     * Hides every message action except Copy and branch switching, whatever callbacks are passed.
+     */
+    readOnly: Boolean = false,
     onReadAloud: (messageId: String) -> Unit = {},
     onFork: (messageId: String) -> Unit = {},
     currentlyReadingMessageId: String? = null,
@@ -138,6 +142,10 @@ fun MessageList(
     // LazyColumn contentPadding, not a solid spacer: content still scrolls up *behind* the
     // translucent ghosts. Defaults to the single-line bar's reserve.
     bottomContentPadding: Dp = 160.dp,
+    // Where the scroll-to-bottom button floats above the list's bottom edge. Null floats it just
+    // above the input bar, 30dp into [bottomContentPadding]. A caller with something else at the
+    // bottom (the shared-chat viewer's Continue FAB) passes a value that clears it.
+    scrollToBottomPadding: Dp? = null,
     // Scrollable top inset mirroring [bottomContentPadding] for the floating top bar: the first
     // message rests below the bar yet still scrolls up *behind* its translucent scrim. The caller
     // measures the bar's actual height (status bar + chips). Defaults to 0 for callers without an
@@ -431,6 +439,7 @@ fun MessageList(
     }
 
     val pullToRefreshState = rememberPullToRefreshState()
+    val resubmit = canResubmit && !readOnly
     // Parsed once per list; `contentType` below runs on every measure pass.
     val wakeups = remember(displayMessages) { wakeupsByMessageId(displayMessages) }
 
@@ -514,8 +523,8 @@ fun MessageList(
                     LocalImmediateMarkdown provides (index == displayMessages.lastIndex),
                     LocalSearchFocusNonce provides if (isCurrent) searchFocusRequest?.requestId ?: 0L else 0L,
                     LocalSuppressGroupAutoCollapse provides (node.message.messageId == justSettledMessageId),
-                    LocalFeedbackEnabled provides !isStreaming,
-                    LocalResubmitEnabled provides canResubmit,
+                    LocalFeedbackEnabled provides (!isStreaming && !readOnly),
+                    LocalResubmitEnabled provides resubmit,
                     LocalExpansionScope provides expansionScope(ExpansionPane.PRIMARY, node.message.parentMessageId),
                 ) {
                 val systemEvent = wakeups.wakeupOf(node, isEditing = editingMessageId == node.message.messageId)
@@ -532,14 +541,14 @@ fun MessageList(
                             onSiblingNavigation(node.treeParentKey, newIndex)
                         },
                         onCopy = { onCopyMessage(node.message.messageId) },
-                        onEdit = if (canResubmit) {
+                        onEdit = if (resubmit) {
                             { onEditMessage(node.message.messageId) }
                         } else {
                             null
                         },
-                        onReadAloud = { onReadAloud(node.message.messageId) },
+                        onReadAloud = if (readOnly) null else ({ onReadAloud(node.message.messageId) }),
                         isReading = currentlyReadingMessageId == node.message.messageId,
-                        onFork = { onFork(node.message.messageId) },
+                        onFork = if (readOnly) null else ({ onFork(node.message.messageId) }),
                     )
                 } else {
                 MessageBubble(
@@ -552,29 +561,29 @@ fun MessageList(
                         onSiblingNavigation(node.treeParentKey, newIndex)
                     },
                     showActionsInitially = lastNavigatedParentKey == node.treeParentKey,
-                    onEdit = if (canResubmit) {
+                    onEdit = if (resubmit) {
                         { onEditMessage(node.message.messageId) }
                     } else {
                         null
                     },
-                    onRegenerate = if (canResubmit && !node.message.isCreatedByUser) {
+                    onRegenerate = if (resubmit && !node.message.isCreatedByUser) {
                         { onRegenerateMessage(node.message.messageId) }
                     } else {
                         null
                     },
                     onCopy = { onCopyMessage(node.message.messageId) },
-                    onFeedback = if (!node.message.isCreatedByUser && feedbackEnabled) {
+                    onFeedback = if (!node.message.isCreatedByUser && feedbackEnabled && !readOnly) {
                         { feedback -> onFeedback(node.message.messageId, feedback) }
                     } else {
                         null
                     },
-                    onContinue = if (canResubmit && !node.message.isCreatedByUser) {
+                    onContinue = if (resubmit && !node.message.isCreatedByUser) {
                         { onContinue(node.message.messageId) }
                     } else {
                         null
                     },
-                    onReadAloud = { onReadAloud(node.message.messageId) },
-                    onFork = { onFork(node.message.messageId) },
+                    onReadAloud = if (readOnly) null else ({ onReadAloud(node.message.messageId) }),
+                    onFork = if (readOnly) null else ({ onFork(node.message.messageId) }),
                     baseUrl = baseUrl,
                     fontSizeMultiplier = fontSizeMultiplier,
                     isReading = currentlyReadingMessageId == node.message.messageId,
@@ -735,7 +744,7 @@ fun MessageList(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 // Float the FAB just above the input bar, tracking the same inset as the content.
-                .padding(bottom = (bottomContentPadding - 30.dp).coerceAtLeast(16.dp)),
+                .padding(bottom = scrollToBottomPadding ?: (bottomContentPadding - 30.dp).coerceAtLeast(16.dp)),
             enter = fadeIn(),
             exit = fadeOut(),
         ) {

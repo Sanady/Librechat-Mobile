@@ -43,6 +43,7 @@ internal data class ChatOverflowGates(
     val sharedLinksEnabled: Boolean,
     /** A compact suggestion is due. A Boolean, not the percent, so the sections aren't rebuilt per tick. */
     val compactNudgeVisible: Boolean = false,
+    val firstTurnStreaming: Boolean = false,
 )
 
 internal fun chatOverflowSections(gates: ChatOverflowGates): List<List<ChatOverflowItem>> = with(gates) {
@@ -74,7 +75,7 @@ internal fun chatOverflowSections(gates: ChatOverflowGates): List<List<ChatOverf
         emptyList()
     } else {
         buildList {
-            if (sharedLinksEnabled) add(ChatOverflowItem.SHARE)
+            if (sharedLinksEnabled && !firstTurnStreaming) add(ChatOverflowItem.SHARE)
             add(ChatOverflowItem.RENAME)
             add(ChatOverflowItem.DUPLICATE)
             add(ChatOverflowItem.ARCHIVE)

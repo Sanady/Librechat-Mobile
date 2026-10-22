@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -43,6 +44,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -64,6 +66,8 @@ import com.garfiec.librechat.core.data.datastore.DateTimePrefsStore
 import com.garfiec.librechat.core.logging.Diag
 import com.garfiec.librechat.core.ui.components.AdaptiveAlertDialog
 import com.garfiec.librechat.core.ui.components.BannerDisplay
+import com.garfiec.librechat.core.ui.components.share.LocalExternalUriHandler
+import com.garfiec.librechat.core.ui.components.share.LocalOpenSharedChat
 import com.garfiec.librechat.core.ui.components.topbar.CoversNativeBars
 import com.garfiec.librechat.core.ui.datetime.ProvideDateTimeFormat
 import com.garfiec.librechat.core.ui.glass.GlassBackdrop
@@ -291,6 +295,9 @@ fun LibreChatNavHost(
             val imageLoader = SingletonImageLoader.get(platformContext)
             imageLoader.memoryCache?.clear()
             withContext(Dispatchers.IO) { imageLoader.diskCache?.clear() }
+            // A shared link that asked for this switch is taken on every flip, so one that can't
+            // open now (the flip landed signed out) can't open over some later, unrelated switch.
+            val pendingSharedChat = navHostViewModel.takePendingSharedChat(current)
             // Reset the stack only on an account-to-account flip; on account-to-logged-out the
             // initiating flow (or the session-expired signal) owns navigation.
             // A flip that lands with the session already gone (the account switched to expired, and
@@ -299,78 +306,122 @@ fun LibreChatNavHost(
                 // Scoped to the incoming account, or the landing's ViewModel would survive the
                 // flip — see Navigator.navigateToChat.
                 navigator.navigateToChat(accountScope = current)
+                // The shared link opens over the fresh stack. Here and not in a collector of its
+                // own, which would race the reset above.
+                pendingSharedChat?.let(navigator::navigateToSharedChat)
             }
         }
         hygieneAccountId = current
+    }
+
+    // Shared links tapped anywhere in the app (chat messages, the Shared chats page): one on a
+    // signed-in account's server opens the in-app viewer; anything else goes to the browser, as
+    // every other link does. The platform handler stays reachable for the viewer's own
+    // "Open in browser", which must not route back into the viewer.
+    val platformUriHandler = LocalUriHandler.current
+    val linkScope = rememberCoroutineScope()
+    val sharedLinkUriHandler = remember(platformUriHandler, navigator, navHostViewModel) {
+        SharedLinkUriHandler(platformUriHandler) { url ->
+            linkScope.launch {
+                when (val route = navHostViewModel.routeSharedLink(url)) {
+                    is SharedLinkRoute.Open -> navigator.navigateToSharedChat(route.shareId)
+                    is SharedLinkRoute.OfferSwitch -> navHostViewModel.offerSharedLinkSwitch(route)
+                    SharedLinkRoute.NotOurs -> runCatching { platformUriHandler.openUri(url) }
+                }
+            }
+        }
+    }
+    val openSharedChat = remember(navigator) { { shareId: String -> navigator.navigateToSharedChat(shareId) } }
+    LaunchedEffect(navHostViewModel, platformUriHandler) {
+        navHostViewModel.browserLinks.collect { url -> runCatching { platformUriHandler.openUri(url) } }
     }
 
     // The locale wrapper must sit BELOW the back stack: changing language recreates the rendered
     // UI so every stringResource re-resolves, while the back stack created above survives the swap
     // and the user stays on their current screen.
     AppLocale(tag = appLocaleTag) {
-        // Date/time format + the app-wide relative-time ticker. Inside AppLocale, which is where
-        // the language override reaches the configuration the format resolves its locale from.
-        val dateTimePrefsStore = koinInject<DateTimePrefsStore>()
-        val dateTimePrefs by dateTimePrefsStore.prefs.collectAsStateWithLifecycle(
-            initialValue = dateTimePrefsStore.initial,
-        )
-        // Liquid Glass sheets are drawn over the whole app from here (see GlassSheetHost) — around
-        // both the shared layouts and a platform's own [content] (Android's), or sheets there fall
-        // back to the opaque M3 sheet.
-        ProvideDateTimeFormat(dateTimePrefs) {
-            GlassSheetHost {
-                // Ctrl/⌘+Shift+F. This handler sees keys only while something is focused, so the
-                // platform hosts also catch it before Compose (AppShortcuts).
-                DisposableEffect(navigator) {
-                    val openSearch = { navigator.openSearchFromShortcut() }
-                    AppShortcuts.openSearch = openSearch
-                    onDispose { if (AppShortcuts.openSearch === openSearch) AppShortcuts.openSearch = null }
-                }
-                Box(
-                    modifier = modifier.onPreviewKeyEvent { navigator.openSearchOnShortcut(it) },
-                    propagateMinConstraints = true,
-                ) {
-                    if (content != null) {
-                        content(navigator, navHostViewModel, Modifier)
-                    } else {
-                        // Read from the window rather than a size class so iPad Split View / Slide
-                        // Over, which resize the window without a rotation, flip the layout too. iOS
-                        // resizes in place, so both layouts share one movable NavDisplay; see
-                        // rememberMovableNavDisplay.
-                        val navDisplay = rememberMovableNavDisplay(navigator)
-                        val window = LocalWindowInfo.current.containerSize
-                        val usesSidebar = with(LocalDensity.current) {
-                            usesSidebarLayout(window.width.toDp(), window.height.toDp())
-                        }
-                        if (usesSidebar) {
-                            TabletLayout(navigator = navigator, navDisplay = navDisplay)
+        CompositionLocalProvider(
+            LocalUriHandler provides sharedLinkUriHandler,
+            LocalExternalUriHandler provides platformUriHandler,
+            LocalOpenSharedChat provides openSharedChat,
+        ) {
+            // Date/time format + the app-wide relative-time ticker. Inside AppLocale, which is where
+            // the language override reaches the configuration the format resolves its locale from.
+            val dateTimePrefsStore = koinInject<DateTimePrefsStore>()
+            val dateTimePrefs by dateTimePrefsStore.prefs.collectAsStateWithLifecycle(
+                initialValue = dateTimePrefsStore.initial,
+            )
+            // Liquid Glass sheets are drawn over the whole app from here (see GlassSheetHost) — around
+            // both the shared layouts and a platform's own [content] (Android's), or sheets there fall
+            // back to the opaque M3 sheet.
+            ProvideDateTimeFormat(dateTimePrefs) {
+                GlassSheetHost {
+                    // Ctrl/⌘+Shift+F. This handler sees keys only while something is focused, so the
+                    // platform hosts also catch it before Compose (AppShortcuts).
+                    DisposableEffect(navigator) {
+                        val openSearch = { navigator.openSearchFromShortcut() }
+                        AppShortcuts.openSearch = openSearch
+                        onDispose { if (AppShortcuts.openSearch === openSearch) AppShortcuts.openSearch = null }
+                    }
+                    Box(
+                        modifier = modifier.onPreviewKeyEvent { navigator.openSearchOnShortcut(it) },
+                        propagateMinConstraints = true,
+                    ) {
+                        if (content != null) {
+                            content(navigator, navHostViewModel, Modifier)
                         } else {
-                            PhoneLayout(navigator = navigator, navDisplay = navDisplay)
+                            // Read from the window rather than a size class so iPad Split View / Slide
+                            // Over, which resize the window without a rotation, flip the layout too. iOS
+                            // resizes in place, so both layouts share one movable NavDisplay; see
+                            // rememberMovableNavDisplay.
+                            val navDisplay = rememberMovableNavDisplay(navigator)
+                            val window = LocalWindowInfo.current.containerSize
+                            val usesSidebar = with(LocalDensity.current) {
+                                usesSidebarLayout(window.width.toDp(), window.height.toDp())
+                            }
+                            if (usesSidebar) {
+                                TabletLayout(navigator = navigator, navDisplay = navDisplay)
+                            } else {
+                                PhoneLayout(navigator = navigator, navDisplay = navDisplay)
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Version mismatch warning dialog
-        val versionMismatch by navHostViewModel.versionMismatch.collectAsStateWithLifecycle()
-        versionMismatch?.let { mismatch ->
-            VersionMismatchDialog(
-                supportedVersion = mismatch.supportedVersion,
-                backendVersion = mismatch.backendVersion,
-                onDismiss = navHostViewModel::dismissVersionWarning,
-                onDismissPermanently = navHostViewModel::dismissVersionWarningPermanently,
-            )
-        }
+            // Version mismatch warning dialog
+            val versionMismatch by navHostViewModel.versionMismatch.collectAsStateWithLifecycle()
+            versionMismatch?.let { mismatch ->
+                VersionMismatchDialog(
+                    supportedVersion = mismatch.supportedVersion,
+                    backendVersion = mismatch.backendVersion,
+                    onDismiss = navHostViewModel::dismissVersionWarning,
+                    onDismissPermanently = navHostViewModel::dismissVersionWarningPermanently,
+                )
+            }
 
-        // Rendered here rather than inside the auth screens: it sits above NavDisplay and so survives
-        // the back-stack reset that routed the user to auth in the first place.
-        val sessionExpiredNotice by navHostViewModel.sessionExpiredNotice.collectAsStateWithLifecycle()
-        sessionExpiredNotice?.let { notice ->
-            SessionExpiredDialog(
-                notice = notice,
-                onDismiss = navHostViewModel::dismissSessionExpiredNotice,
-            )
+            // Rendered here rather than inside the auth screens: it sits above NavDisplay and so survives
+            // the back-stack reset that routed the user to auth in the first place.
+            val sessionExpiredNotice by navHostViewModel.sessionExpiredNotice.collectAsStateWithLifecycle()
+            sessionExpiredNotice?.let { notice ->
+                SessionExpiredDialog(
+                    notice = notice,
+                    onDismiss = navHostViewModel::dismissSessionExpiredNotice,
+                )
+            }
+
+            val sharedLinkOffer by navHostViewModel.sharedLinkOffer.collectAsStateWithLifecycle()
+            sharedLinkOffer?.let { offer ->
+                SharedLinkSwitchDialog(
+                    offer = offer,
+                    onSwitch = navHostViewModel::acceptSharedLinkSwitch,
+                    onOpenInBrowser = {
+                        navHostViewModel.dismissSharedLinkOffer()
+                        runCatching { platformUriHandler.openUri(offer.url) }
+                    },
+                    onDismiss = navHostViewModel::dismissSharedLinkOffer,
+                )
+            }
         }
     }
 }
@@ -494,68 +545,78 @@ fun PhoneLayout(
             val sidebar: @Composable () -> Unit = {
                 // targetValue, not isOpen: start polling as the drawer begins to open, not after it settles.
                 val drawerOpen by remember { derivedStateOf { drawerState.targetValue == DrawerValue.Open } }
-                SidebarScaffold(
-                    isOpen = drawerOpen,
-                    onNewChat = {
+                // The share sheet's Preview opens the viewer from here: shut the drawer first, as every
+                // other way out of it does, or it stays open over the viewer.
+                val openSharedChat = remember(navigator, drawerState, scope) {
+                    { shareId: String ->
                         scope.launch { drawerState.close() }
-                        // A project's landing is not the plain one, so New chat still leaves it.
-                        if ((navigator.currentRoute as? NewChat)?.isPlainLanding != true) {
+                        navigator.navigateToSharedChat(shareId)
+                    }
+                }
+                CompositionLocalProvider(LocalOpenSharedChat provides openSharedChat) {
+                    SidebarScaffold(
+                        isOpen = drawerOpen,
+                        onNewChat = {
+                            scope.launch { drawerState.close() }
+                            // A project's landing is not the plain one, so New chat still leaves it.
+                            if ((navigator.currentRoute as? NewChat)?.isPlainLanding != true) {
+                                navigator.navigateToTopLevel(NewChat())
+                            }
+                        },
+                        onConversationClick = { conversationId ->
+                            scope.launch { drawerState.close() }
+                            navigator.navigateToChat(conversationId)
+                        },
+                        // Leave the drawer open (no drawerState.close()) so the user can keep browsing,
+                        // unlike onNewChat above.
+                        onActiveConversationDelete = {
                             navigator.navigateToTopLevel(NewChat())
-                        }
-                    },
-                    onConversationClick = { conversationId ->
-                        scope.launch { drawerState.close() }
-                        navigator.navigateToChat(conversationId)
-                    },
-                    // Leave the drawer open (no drawerState.close()) so the user can keep browsing,
-                    // unlike onNewChat above.
-                    onActiveConversationDelete = {
-                        navigator.navigateToTopLevel(NewChat())
-                    },
-                    onSettingsClick = {
-                        scope.launch { drawerState.close() }
-                        navigator.navigate(SettingsTabbed)
-                    },
-                    onAgentsClick = {
-                        scope.launch { drawerState.close() }
-                        navigator.navigate(AgentMarketplace)
-                    },
-                    onFilesClick = {
-                        scope.launch { drawerState.close() }
-                        navigator.navigate(Files)
-                    },
-                    onSkillsClick = {
-                        scope.launch { drawerState.close() }
-                        navigator.navigate(SkillsList)
-                    },
-                    onSchedulesClick = {
-                        scope.launch { drawerState.close() }
-                        navigator.navigate(SchedulesList)
-                    },
-                    onOpenProjectsIndex = {
-                        scope.launch { drawerState.close() }
-                        navigator.navigate(Projects)
-                    },
-                    onNewChatInProject = { projectId, projectName ->
-                        scope.launch { drawerState.close() }
-                        navigator.navigateToNewChatInProject(projectId, projectName)
-                    },
-                    onOpenSearch = { query ->
-                        scope.launch { drawerState.close() }
-                        navigator.navigateToSearch(query)
-                    },
-                    onMessageClick = { conversationId, messageId, query, inReasoning ->
-                        scope.launch { drawerState.close() }
-                        navigator.navigateToMessage(conversationId, messageId, query, inReasoning)
-                    },
-                    onSwitchAccount = { accountId ->
-                        navHostViewModel.switchAccount(accountId)
-                    },
-                    onAddAccount = {
-                        scope.launch { drawerState.close() }
-                        navigator.navigate(AddAccountServerUrl)
-                    },
-                )
+                        },
+                        onSettingsClick = {
+                            scope.launch { drawerState.close() }
+                            navigator.navigate(SettingsTabbed)
+                        },
+                        onAgentsClick = {
+                            scope.launch { drawerState.close() }
+                            navigator.navigate(AgentMarketplace)
+                        },
+                        onFilesClick = {
+                            scope.launch { drawerState.close() }
+                            navigator.navigate(Files)
+                        },
+                        onSkillsClick = {
+                            scope.launch { drawerState.close() }
+                            navigator.navigate(SkillsList)
+                        },
+                        onSchedulesClick = {
+                            scope.launch { drawerState.close() }
+                            navigator.navigate(SchedulesList)
+                        },
+                        onOpenProjectsIndex = {
+                            scope.launch { drawerState.close() }
+                            navigator.navigate(Projects)
+                        },
+                        onNewChatInProject = { projectId, projectName ->
+                            scope.launch { drawerState.close() }
+                            navigator.navigateToNewChatInProject(projectId, projectName)
+                        },
+                        onOpenSearch = { query ->
+                            scope.launch { drawerState.close() }
+                            navigator.navigateToSearch(query)
+                        },
+                        onMessageClick = { conversationId, messageId, query, inReasoning ->
+                            scope.launch { drawerState.close() }
+                            navigator.navigateToMessage(conversationId, messageId, query, inReasoning)
+                        },
+                        onSwitchAccount = { accountId ->
+                            navHostViewModel.switchAccount(accountId)
+                        },
+                        onAddAccount = {
+                            scope.launch { drawerState.close() }
+                            navigator.navigate(AddAccountServerUrl)
+                        },
+                    )
+                }
             }
             if (glass == null) {
                 MaterialDrawerSheet(drawerState = drawerState, content = sidebar)
@@ -801,6 +862,7 @@ fun MainNavDisplay(
                 // successor was promoted.
                 onLogout = { navHostViewModel.logout() },
                 onNavigateToArchive = { navigator.navigate(ArchivedConversations) },
+                onOpenConversation = { navigator.navigateToChat(it) },
             )
             memoriesEntry(
                 onBack = { navigator.goBack() },

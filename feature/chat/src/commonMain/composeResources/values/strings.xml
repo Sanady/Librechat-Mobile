@@ -10,6 +10,7 @@
     <string name="action_insert">Insert</string>
     <string name="action_open">Open</string>
     <string name="action_share">Share</string>
+    <string name="action_share_link_active">Share · Link active</string>
     <string name="action_search">Search</string>
     <string name="action_archive">Archive</string>
     <string name="action_duplicate">Duplicate</string>
@@ -684,7 +685,6 @@
     <string name="notice_delete_failed">Failed to delete conversation</string>
     <string name="notice_archive_failed">Failed to archive conversation</string>
     <string name="notice_duplicate_failed">Failed to duplicate conversation</string>
-    <string name="notice_share_link_failed">Failed to create share link</string>
     <string name="notice_preset_save_failed">Could not save preset</string>
     <string name="notice_preset_delete_failed">Could not delete preset</string>
     <string name="notice_preset_update_failed">Could not update preset</string>
@@ -794,7 +794,6 @@
     <string name="sibling_position">Response %1$d of %2$d</string>
     <string name="cd_assistant_responding">Assistant is responding: %1$s</string>
     <string name="tool_call_fallback">Tool Call</string>
-    <string name="share_link_copied">Share link copied to clipboard</string>
     <string name="prompt_filter_title">Filter &amp; Sort</string>
     <string name="prompt_sort_recent">Recent</string>
     <string name="prompt_sort_popular">Popular</string>
@@ -816,4 +815,27 @@
     <string name="prompt_preview_placeholder">Enter variable values to see preview</string>
     <string name="cd_sync_scroll_on">Panes scroll together. Unlink</string>
     <string name="cd_sync_scroll_off">Panes scroll separately. Link</string>
+    <!-- Shared chat viewer -->
+    <string name="shared_chat_title_fallback">Shared chat</string>
+    <string name="shared_chat_subtitle">Shared chat · %1$s</string>
+    <string name="shared_chat_continue">Continue this chat</string>
+    <string name="shared_chat_open_in_browser">Open in browser</string>
+    <string name="shared_chat_langfuse">View session in Langfuse</string>
+    <string name="shared_chat_link_updated">This link was updated. The latest version is now showing.</string>
+    <string name="shared_chat_continue_rate_limited">Too many requests to continue chats. Try again later.</string>
+    <string name="shared_chat_continue_failed">Couldn’t continue this chat</string>
+    <string name="shared_chat_continue_unsupported">This server can’t continue shared chats</string>
+    <string name="shared_chat_refresh_failed">Couldn’t refresh this shared chat</string>
+    <string name="shared_chat_continue_blocked">Your server blocked copying this chat</string>
+    <string name="shared_chat_continue_blocked_reason">Your server blocked copying this chat: %1$s</string>
+    <string name="shared_chat_not_found">Shared link not found</string>
+    <string name="shared_chat_not_found_description">It may have been deleted, or the link may be wrong.</string>
+    <string name="shared_chat_no_access">You can’t open this shared chat</string>
+    <string name="shared_chat_no_access_description">It isn’t shared with this account.</string>
+    <string name="shared_chat_rate_limited">Too many shared link requests</string>
+    <string name="shared_chat_rate_limited_description">Try again in a moment.</string>
+    <string name="shared_chat_blocked">Your server blocked this shared chat</string>
+    <string name="shared_chat_load_failed">Couldn’t load this shared chat</string>
+    <string name="shared_chat_user">User</string>
+    <string name="shared_chat_file_failed">Couldn’t open this file</string>
 </resources>

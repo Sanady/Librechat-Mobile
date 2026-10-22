@@ -10,6 +10,7 @@
     <string name="action_insert">挿入</string>
     <string name="action_open">開く</string>
     <string name="action_share">共有</string>
+    <string name="action_share_link_active">共有 · リンク有効</string>
     <string name="action_search">検索</string>
     <string name="action_archive">アーカイブ</string>
     <string name="action_duplicate">複製</string>
@@ -659,7 +660,6 @@
     <string name="notice_delete_failed">会話を削除できませんでした</string>
     <string name="notice_archive_failed">会話をアーカイブできませんでした</string>
     <string name="notice_duplicate_failed">会話を複製できませんでした</string>
-    <string name="notice_share_link_failed">共有リンクを作成できませんでした</string>
     <string name="notice_preset_save_failed">プリセットを保存できませんでした</string>
     <string name="notice_preset_delete_failed">プリセットを削除できませんでした</string>
     <string name="notice_preset_update_failed">プリセットを更新できませんでした</string>
@@ -742,7 +742,6 @@
     <string name="sibling_position">回答 %1$d / %2$d</string>
     <string name="cd_assistant_responding">アシスタントが応答中：%1$s</string>
     <string name="tool_call_fallback">ツール呼び出し</string>
-    <string name="share_link_copied">共有リンクをクリップボードにコピーしました</string>
     <string name="prompt_filter_title">絞り込みと並べ替え</string>
     <string name="prompt_sort_recent">新しい順</string>
     <string name="prompt_sort_popular">人気順</string>
@@ -764,4 +763,27 @@
     <string name="prompt_preview_placeholder">変数の値を入力するとプレビューが表示されます</string>
     <string name="cd_sync_scroll_on">ペインは連動してスクロールします。連動を解除</string>
     <string name="cd_sync_scroll_off">ペインは個別にスクロールします。連動させる</string>
+    <!-- Shared chat viewer -->
+    <string name="shared_chat_title_fallback">共有チャット</string>
+    <string name="shared_chat_subtitle">共有チャット · %1$s</string>
+    <string name="shared_chat_continue">このチャットを続ける</string>
+    <string name="shared_chat_open_in_browser">ブラウザで開く</string>
+    <string name="shared_chat_langfuse">Langfuse でセッションを表示</string>
+    <string name="shared_chat_link_updated">このリンクは更新されました。最新版を表示しています。</string>
+    <string name="shared_chat_continue_rate_limited">チャットを続けるリクエストが多すぎます。しばらくしてからもう一度お試しください。</string>
+    <string name="shared_chat_continue_failed">このチャットを続けられませんでした</string>
+    <string name="shared_chat_continue_unsupported">このサーバーでは共有チャットを続けられません</string>
+    <string name="shared_chat_refresh_failed">この共有チャットを更新できませんでした</string>
+    <string name="shared_chat_continue_blocked">サーバーがこのチャットのコピーをブロックしました</string>
+    <string name="shared_chat_continue_blocked_reason">サーバーがこのチャットのコピーをブロックしました: %1$s</string>
+    <string name="shared_chat_not_found">共有リンクが見つかりません</string>
+    <string name="shared_chat_not_found_description">削除されたか、リンクが間違っている可能性があります。</string>
+    <string name="shared_chat_no_access">この共有チャットを開けません</string>
+    <string name="shared_chat_no_access_description">このアカウントには共有されていません。</string>
+    <string name="shared_chat_rate_limited">共有リンクへのリクエストが多すぎます</string>
+    <string name="shared_chat_rate_limited_description">少し待ってからもう一度お試しください。</string>
+    <string name="shared_chat_blocked">サーバーがこの共有チャットをブロックしました</string>
+    <string name="shared_chat_load_failed">この共有チャットを読み込めませんでした</string>
+    <string name="shared_chat_user">ユーザー</string>
+    <string name="shared_chat_file_failed">このファイルを開けませんでした</string>
 </resources>

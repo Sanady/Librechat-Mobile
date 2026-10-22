@@ -10,6 +10,7 @@
     <string name="action_insert">Insertar</string>
     <string name="action_open">Abrir</string>
     <string name="action_share">Compartir</string>
+    <string name="action_share_link_active">Compartir · Enlace activo</string>
     <string name="action_search">Buscar</string>
     <string name="action_archive">Archivar</string>
     <string name="action_duplicate">Duplicar</string>
@@ -659,7 +660,6 @@
     <string name="notice_delete_failed">No se pudo eliminar la conversación</string>
     <string name="notice_archive_failed">No se pudo archivar la conversación</string>
     <string name="notice_duplicate_failed">No se pudo duplicar la conversación</string>
-    <string name="notice_share_link_failed">No se pudo crear el enlace para compartir</string>
     <string name="notice_preset_save_failed">No se pudo guardar el preajuste</string>
     <string name="notice_preset_delete_failed">No se pudo eliminar el preajuste</string>
     <string name="notice_preset_update_failed">No se pudo actualizar el preajuste</string>
@@ -757,7 +757,6 @@
     <string name="sibling_position">Respuesta %1$d de %2$d</string>
     <string name="cd_assistant_responding">El asistente está respondiendo: %1$s</string>
     <string name="tool_call_fallback">Llamada a herramienta</string>
-    <string name="share_link_copied">Enlace para compartir copiado al portapapeles</string>
     <string name="prompt_filter_title">Filtrar y ordenar</string>
     <string name="prompt_sort_recent">Recientes</string>
     <string name="prompt_sort_popular">Populares</string>
@@ -779,4 +778,27 @@
     <string name="prompt_preview_placeholder">Introduce valores para las variables y verás la vista previa</string>
     <string name="cd_sync_scroll_on">Los paneles se desplazan juntos. Desvincular</string>
     <string name="cd_sync_scroll_off">Los paneles se desplazan por separado. Vincular</string>
+    <!-- Shared chat viewer -->
+    <string name="shared_chat_title_fallback">Chat compartido</string>
+    <string name="shared_chat_subtitle">Chat compartido · %1$s</string>
+    <string name="shared_chat_continue">Continuar este chat</string>
+    <string name="shared_chat_open_in_browser">Abrir en el navegador</string>
+    <string name="shared_chat_langfuse">Ver sesión en Langfuse</string>
+    <string name="shared_chat_link_updated">Este enlace se actualizó. Ahora se muestra la versión más reciente.</string>
+    <string name="shared_chat_continue_rate_limited">Demasiadas solicitudes para continuar chats. Inténtalo más tarde.</string>
+    <string name="shared_chat_continue_failed">No se pudo continuar este chat</string>
+    <string name="shared_chat_continue_unsupported">Este servidor no permite continuar chats compartidos</string>
+    <string name="shared_chat_refresh_failed">No se pudo actualizar este chat compartido</string>
+    <string name="shared_chat_continue_blocked">Tu servidor bloqueó la copia de este chat</string>
+    <string name="shared_chat_continue_blocked_reason">Tu servidor bloqueó la copia de este chat: %1$s</string>
+    <string name="shared_chat_not_found">No se encontró el enlace compartido</string>
+    <string name="shared_chat_not_found_description">Puede que se haya eliminado o que el enlace sea incorrecto.</string>
+    <string name="shared_chat_no_access">No puedes abrir este chat compartido</string>
+    <string name="shared_chat_no_access_description">No está compartido con esta cuenta.</string>
+    <string name="shared_chat_rate_limited">Demasiadas solicitudes de enlaces compartidos</string>
+    <string name="shared_chat_rate_limited_description">Inténtalo de nuevo en un momento.</string>
+    <string name="shared_chat_blocked">Tu servidor bloqueó este chat compartido</string>
+    <string name="shared_chat_load_failed">No se pudo cargar este chat compartido</string>
+    <string name="shared_chat_user">Usuario</string>
+    <string name="shared_chat_file_failed">No se pudo abrir este archivo</string>
 </resources>

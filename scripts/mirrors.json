@@ -1813,6 +1813,307 @@
       },
       "why": "How the web decides a description is HTML at all. The rule lives in Description.tsx: `isHtmlDescription` matches `^<\\s*\\/?\\s*([a-z][a-z0-9]*)\\b` on the trimmed text and checks the tag against `descriptionHtmlTags` (CONFIG_HTML_RICH_TEXT_TAGS plus CONFIG_HTML_MEDIA_TAGS, so `img` counts). This client ports it as `isAgentDescriptionHtml` (decisions C7): only a description that starts with such a tag is HTML, so `List<String>` or a tag mid-sentence stays plain. Other upstream revisions use `description.trim().startsWith('<')` instead. The whole file is watched so a change to the regex or the tag set is seen.",
       "failure_mode": "Upstream changes its detection, and a description the web shows as text renders as HTML here (placeholders vanish) or the reverse (markup shows raw). Nothing fails to decode."
+    },
+    {
+      "id": "share-files-default-on",
+      "upstream": {
+        "file": "client/src/components/Conversations/ConvoOptions/ShareButton.tsx",
+        "mode": "file"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/share/ShareLinkController.kt",
+        "symbol": "ShareLinkController.phaseFor / create / update (FilesOption.NEW_LINK in ShareSheetState.kt)"
+      },
+      "why": "The share dialog's 'Share files' switch starts ON for a conversation with no link (and for a legacy link that stored no choice), and an existing link shows its stored snapshotFiles. The default sits in a useState and a useEffect inside the component, which the block extractor cannot isolate, so the whole file is watched; churn elsewhere in the dialog (QR, layout, target resolution) reports DRIFT -- check the snapshotFiles state, not the file. The controller seeds a new link from FilesOption.NEW_LINK and an existing one from the lookup's snapshotFiles ?: true, and sends the value on Create and on every Update (see share-update-snapshot-files-reset).",
+      "failure_mode": "Web flips the default to off and the app keeps publishing every new link with the chat's images and files, or the reverse. Nothing errors."
+    },
+    {
+      "id": "share-url-format",
+      "upstream": {
+        "file": "client/src/utils/share.ts",
+        "symbol": "buildShareLinkUrl",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/repository/ShareRepositoryImpl.kt",
+        "symbol": "ShareRepositoryImpl.shareUrl"
+      },
+      "why": "A shared link's public URL is `<apiBaseUrl>/share/<shareId>`, built client-side; the server only returns the shareId. The app builds it from the active server's cleaned base URL in one place.",
+      "failure_mode": "Web moves the viewer route (or adds a prefix) and every link the app copies, shows as a QR code or hands to the system share sheet opens a 404. Nothing errors in the app."
+    },
+    {
+      "id": "share-link-route",
+      "upstream": {
+        "file": "client/src/routes/index.tsx",
+        "symbol": "router",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/common/src/commonMain/kotlin/com/garfiec/librechat/core/common/identity/ShareLinkMatcher.kt",
+        "symbol": "ShareLinkMatcher.parse"
+      },
+      "why": "A tapped or shared-in link opens the in-app viewer only when it reads as `<server>/share/<shareId>`: the web client's `share/:shareId` route under the deployment's base path, one id segment. Anything else goes to the browser (taps) or the composer (share-to).",
+      "failure_mode": "Web moves or renames the viewer route and links to it stop opening in the app (they go to the browser instead), or the app opens a path web no longer treats as a share. Nothing errors."
+    },
+    {
+      "id": "shared-links-sort-keys",
+      "upstream": {
+        "file": "api/server/routes/share.js",
+        "mode": "file"
+      },
+      "kotlin": {
+        "file": "core/model/src/commonMain/kotlin/com/garfiec/librechat/core/model/share/SharedLinksQuery.kt",
+        "symbol": "SharedLinksSort"
+      },
+      "why": "GET /api/share accepts sortBy createdAt|title and sortDirection asc|desc, inline in the list handler, and silently falls back to createdAt desc on anything else; a cursor is only valid for the sort that made it (400 otherwise). The handler is an anonymous route callback the block extractor cannot isolate, so the whole route file is watched; the same file carries the error-code table and the PATCH snapshotFiles rule, so DRIFT here may belong to either of those entries -- check the GET '/' handler.",
+      "failure_mode": "A renamed sort key makes the app's Oldest / Title order silently come back newest-first, or a cursor rule change makes load-more 400."
+    },
+    {
+      "id": "shared-links-search-cap",
+      "upstream": {
+        "file": "packages/api/src/shared-links/http.ts",
+        "symbol": "MAX_SHARED_LINK_SEARCH_LENGTH",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/model/src/commonMain/kotlin/com/garfiec/librechat/core/model/share/SharedLinksQuery.kt",
+        "symbol": "MAX_SHARED_LINK_SEARCH_LENGTH"
+      },
+      "why": "The shared-links list 400s a trimmed search longer than this. The repository trims and cuts the query to it before sending.",
+      "failure_mode": "Upstream lowers the cap and long searches fail with a 400 the list shows as a load error; raises it and the app cuts searches the server would have taken."
+    },
+    {
+      "id": "share-service-error-codes",
+      "upstream": {
+        "file": "api/server/routes/share.js",
+        "symbol": "SHARE_SERVICE_ERROR_STATUS",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/share/ShareFailure.kt",
+        "symbol": "ShareErrorCode / toSheetError"
+      },
+      "why": "The share routes answer {message, code} and the code decides what the sheet says and does: TARGET_MESSAGE_NOT_FOUND / NO_MESSAGES trigger the one re-resolved retry and their own messages, SHARE_EXISTS is answered with a lookup, SHARE_REVISION_MISMATCH is the viewer's 'link was updated', *_NOT_FOUND read as removed. The codes are strings on the wire with no schema.",
+      "failure_mode": "A renamed or new code falls through to the generic error: the saved-target retry stops firing, or a 409 that should be adopted shows 'Something went wrong'."
+    },
+    {
+      "id": "share-update-snapshot-files-reset",
+      "upstream": {
+        "file": "api/server/routes/share.js",
+        "mode": "file"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/share/ShareLinkController.kt",
+        "symbol": "ShareLinkController.update"
+      },
+      "why": "PATCH /api/share/:shareId re-derives snapshotFiles from the request on every update (`isFileSnapshotEnabled(config) && requested !== false`), so an update without snapshotFiles turns files back ON for a link that had them off. The controller therefore always sends the link's stored choice (from the lookup) or the user's new one. Lives inside an anonymous route handler, so the whole file is watched -- check the PATCH handler's snapshotFiles line.",
+      "failure_mode": "If upstream starts preserving the stored value on omission nothing breaks; if it changes the default or the field name, updates silently publish files the user turned off, or drop files they wanted."
+    },
+    {
+      "id": "share-content-filter-block",
+      "upstream": {
+        "file": "packages/api/src/middleware/contentFilter.ts",
+        "symbol": "contentFilterBlockResponse",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/share/ShareFailure.kt",
+        "symbol": "ShareErrorCode.CONTENT_FILTER_BLOCK"
+      },
+      "why": "A content-filter refusal on the share routes is a 400 with {error: 'content_filter_block', message, source, field} and no code. The sheet keys 'Your server blocked sharing this content' plus the server's sentence on that error id.",
+      "failure_mode": "A renamed error id makes a filter refusal read as a generic failure, hiding the server's explanation of what to remove."
+    },
+    {
+      "id": "share-content-filter-uninspectable",
+      "upstream": {
+        "file": "packages/api/src/protection/files.ts",
+        "symbol": "contentFilterUninspectableResponse",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/share/ShareFailure.kt",
+        "symbol": "ShareErrorCode.CONTENT_FILTER_UNINSPECTABLE"
+      },
+      "why": "The other content-filter body the share routes send (also ContentTraversalLimitError in protection/adapters/nested.ts uses the same id): {error: 'content_filter_uninspectable', ...}, 400, no code.",
+      "failure_mode": "Same as share-content-filter-block, for files the filter couldn't inspect."
+    },
+    {
+      "id": "share-fork-index-revision",
+      "upstream": {
+        "file": "api/server/utils/import/fork.js",
+        "symbol": "forkSharedConversation",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/model/src/commonMain/kotlin/com/garfiec/librechat/core/model/request/ForkSharedConversationRequest.kt",
+        "symbol": "ForkSharedConversationRequest"
+      },
+      "why": "Fork from a share: targetMessageIndex is the index of the active branch tip in the snapshot's messages and the server copies the direct path to it; shareRevision is the snapshot's updatedAt, a mismatch is 409 SHARE_REVISION_MISMATCH, and WITHOUT a revision the index is ignored and the whole share is copied. So the viewer must send both.",
+      "failure_mode": "Upstream changes the index basis (e.g. to ids) or the revision rule, and Continue silently forks the wrong branch or the whole share."
+    },
+    {
+      "id": "share-viewer-active-tail",
+      "upstream": {
+        "file": "client/src/utils/messages.ts",
+        "symbol": "selectActiveBranchTail",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "feature/chat/src/commonMain/kotlin/com/garfiec/librechat/feature/chat/viewmodel/SharedChatViewModel.kt",
+        "symbol": "activeTailIndex / SharedChatViewModel.continueChat"
+      },
+      "why": "Continue from a shared link forks the branch on screen: web walks the shared tree from the root, taking the chosen sibling at each level and the newest by default, and sends the index of the tip it reaches in the snapshot's messages (ShareView.tsx getActiveTargetIndex). The viewer takes the last node of buildActiveMessagePath, whose default is also the newest sibling, and looks up its index the same way.",
+      "failure_mode": "Web changes which sibling a branch defaults to, or what the tip is, and Continue in the app copies a different branch from the one web would for the same screen. Nothing errors."
+    },
+    {
+      "id": "share-target-branch-tail",
+      "upstream": {
+        "file": "client/src/components/Conversations/ConvoOptions/SharedLinkButton.tsx",
+        "mode": "file"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/share/TargetResolver.kt",
+        "symbol": "TargetResolver / ShareLinkController.publish"
+      },
+      "why": "From the open chat, web sends the active branch's latest message as targetMessageId (ShareButton.tsx resolveTargetMessageId, after confirming it is saved) and, on TARGET_MESSAGE_NOT_FOUND or NO_MESSAGES, re-resolves and retries exactly once (publishWithTailRetry here). Sharing any other conversation sends no target. The retry lives in a module-level arrow function the extractor can isolate, but the error-code helper beside it matters too, so the file is watched.",
+      "failure_mode": "Web changes which message it targets or drops the retry, and the app shares a different cut of the chat than web would, or keeps retrying where web gives up. Nothing errors."
+    },
+    {
+      "id": "file-source-text",
+      "upstream": {
+        "file": "packages/data-provider/src/types/files.ts",
+        "symbol": "FileSources",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/model/src/commonMain/kotlin/com/garfiec/librechat/core/model/FileModel.kt",
+        "symbol": "FILE_SOURCE_TEXT"
+      },
+      "why": "A file whose source is 'text' has no stored bytes; the shared-link file route serves its extracted text as text/plain. The viewer opens such files as text.",
+      "failure_mode": "The value is renamed and text-only files in a shared chat try to open as binary downloads that fail."
+    },
+    {
+      "id": "shared-link-access-roles",
+      "upstream": {
+        "file": "packages/data-provider/src/accessPermissions.ts",
+        "symbol": "AccessRoleIds",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/model/src/commonMain/kotlin/com/garfiec/librechat/core/model/PermissionBits.kt",
+        "symbol": "AccessRoleIds / ResourceType.SHARED_LINK"
+      },
+      "why": "A shared link's ACL has two roles: sharedLink_viewer, which every grant and public access take, and sharedLink_owner, which is shown locked and never offered (web filters it from AccessRolesPicker and locks the row in SelectedPrincipalsList). The access section also labels a role by its id's _viewer / _editor / _owner suffix, since the roles route returns i18n keys (com_ui_role_viewer) as names.",
+      "failure_mode": "Upstream renames a role id or adds a shared-link role, and the editor offers the owner role, grants a role that no longer exists (the PUT fails), or labels roles by their raw ids."
+    },
+    {
+      "id": "shared-link-owner-protection",
+      "upstream": {
+        "file": "api/server/routes/accessPermissions.js",
+        "symbol": "rejectSharedLinkOwnerPermissionChanges",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/acl/AclController.kt",
+        "symbol": "OWNER_PROTECTED_MESSAGE / toAclError"
+      },
+      "why": "Any PUT that grants sharedLink_owner, or adds or removes the link's owner as a user, is refused with 400 {error:'Bad Request', message:'Shared link owner permissions cannot be changed'}. The body carries no code, so the client matches that exact message to say 'The owner's access can't be changed' instead of a generic failure.",
+      "failure_mode": "Upstream rewords the message or adds a code, and an owner-protection refusal reads as 'Couldn't update access. Try again.', inviting a retry that can never succeed."
+    },
+    {
+      "id": "acl-public-update-rule",
+      "upstream": {
+        "file": "api/server/controllers/PermissionsController.js",
+        "symbol": "updateResourcePermissions",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/acl/AclController.kt",
+        "symbol": "AclController.setPublic / grant / revoke"
+      },
+      "why": "In the PUT body, public:true with publicAccessRoleId grants public access, public:false (strictly false) revokes it, and an absent public leaves it alone. The share-policy middleware checks SHARE_PUBLIC whenever public is true, so the editor sends public only when public access is what changes (web's sendPublicUpdate rule), never echoed on a grant or revoke. UpdateResourcePermissionsRequest.public is nullable so false survives encodeDefaults=false.",
+      "failure_mode": "Upstream starts reading an absent public as false (every grant would turn public access off) or changes the revoke test, and public access flips without the user touching the switch."
+    },
+    {
+      "id": "share-public-grant-rule",
+      "upstream": {
+        "file": "api/server/routes/share.js",
+        "mode": "file"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/share/ShareLinkController.kt",
+        "symbol": "ShareLinkController.newLinkAudience"
+      },
+      "why": "POST /api/share/:conversationId reads grantPublic = role.permissions.SHARED_LINKS.SHARE_PUBLIC === true and passes it to grantCreationPermissions, which adds the PUBLIC viewer grant only when it is true. Without that grant only the owner and explicit ACL principals can open the link; with it, anyone (ALLOW_SHARED_LINKS_PUBLIC, publicSharedLinksEnabled) or any signed-in user. The sheet's who-can-open note for a new link follows that rule, fail-closed on an unknown role.",
+      "failure_mode": "Upstream changes who gets the creation-time public grant (another permission bit, a default, a config switch), and the sheet promises access the server never grants, or hides access it does. Nothing errors; a colleague just gets a 403."
+    },
+    {
+      "id": "share-public-grant-creation",
+      "upstream": {
+        "file": "packages/api/src/shared-links/service.ts",
+        "symbol": "grantCreationPermissions",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/share/ShareLinkController.kt",
+        "symbol": "ShareLinkController.newLinkAudience"
+      },
+      "why": "grantCreationPermissions grants OWNER to the creator and SHARED_LINK_VIEWER to PUBLIC only when grantPublic is true; see share-public-grant-rule for where grantPublic comes from.",
+      "failure_mode": "Upstream grants the public viewer role unconditionally or to another principal, and the sheet's 'Only you and the people you add' note becomes wrong."
+    },
+    {
+      "id": "acl-share-policy-gates",
+      "upstream": {
+        "file": "packages/api/src/middleware/share.ts",
+        "mode": "file"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/acl/AclController.kt",
+        "symbol": "AclController.gates / ShareLinkController.canShareLinks"
+      },
+      "why": "Changing a resource's ACL needs the role's <type> SHARE (checkShareAccess, sharedLink -> SHARED_LINKS) and, for public:true, SHARE_PUBLIC (checkSharePublicAccess), each strictly === true. The client gates the Manage access row on SHARED_LINKS.SHARE and the public switch on SHARED_LINKS.SHARE_PUBLIC, fail-closed to match.",
+      "failure_mode": "Upstream maps sharedLink to another permission type or relaxes a check, and the app hides controls the server would allow or shows ones it refuses with a 403."
+    },
+    {
+      "id": "acl-people-picker-gate",
+      "upstream": {
+        "file": "packages/api/src/acl/search.ts",
+        "symbol": "PRINCIPAL_SEARCH_PERMISSIONS",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/acl/AclController.kt",
+        "symbol": "AclController.gates (canSearch)"
+      },
+      "why": "search-principals is behind checkPeoplePickerAccess: a non-admin may search only the principal types whose PEOPLE_PICKER permission (VIEW_USERS, VIEW_GROUPS, VIEW_ROLES) is strictly true, and gets a 403 when none is. The editor shows people search with any of the three and sends no type filter, so the server searches whatever the role allows.",
+      "failure_mode": "Upstream renames the permissions or changes the mapping, and the search box disappears for people who may search, or shows and only ever fails."
+    },
+    {
+      "id": "acl-principal-search-min-length",
+      "upstream": {
+        "file": "packages/api/src/acl/search.ts",
+        "symbol": "createPrincipalSearch",
+        "mode": "block"
+      },
+      "kotlin": {
+        "file": "core/model/src/commonMain/kotlin/com/garfiec/librechat/core/model/acl/AclState.kt",
+        "symbol": "AclSearch.MIN_QUERY_LENGTH"
+      },
+      "why": "search-principals answers 400 'Query must be at least 2 characters long' when the trimmed q is shorter than 2 (web's people search is enabled only from 2 characters). AclController sends no search below that length, and the editor shows neither an error nor 'no matches' for it.",
+      "failure_mode": "Upstream raises the minimum, and every query below the new length shows 'Couldn't search' instead of waiting for more letters."
+    },
+    {
+      "id": "shared-link-manage-access-gate",
+      "upstream": {
+        "file": "client/src/components/Conversations/ConvoOptions/SharedLinkButton.tsx",
+        "mode": "file"
+      },
+      "kotlin": {
+        "file": "core/data/src/commonMain/kotlin/com/garfiec/librechat/core/data/share/ShareLinkController.kt",
+        "symbol": "ShareLinkController.render (canManageAccess)"
+      },
+      "why": "Web offers Manage access on a shared link only when the role has SHARED_LINKS.SHARE (useHasAccess, false on unknown), the link's effective permissions (GET /api/permissions/sharedLink/:_id/effective) include the SHARE bit, and the lookup returned the link's _id. The sheet's row follows the same three conditions.",
+      "failure_mode": "Web changes the gate, and the app offers a page whose reads the server refuses, or hides it from people web lets in."
     }
   ]
 }
