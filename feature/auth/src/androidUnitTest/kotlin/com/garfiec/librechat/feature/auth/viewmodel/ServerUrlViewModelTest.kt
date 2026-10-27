@@ -77,6 +77,23 @@ class ServerUrlViewModelTest {
     )
 
     @Test
+    fun `normal mode does not publish config when detaching the old session fails`() = runTest(testDispatcher) {
+        coEvery { accountSwitcher.prepareForSignIn(any()) } throws IllegalStateException("storage unavailable")
+        val viewModel = createViewModel(addAccount = false)
+        advanceUntilIdle()
+
+        viewModel.onUrlChanged(pendingUrl)
+        viewModel.validateAndConnect()
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.isValidated).isFalse()
+        assertThat(viewModel.uiState.value.isLoading).isFalse()
+        assertThat(viewModel.uiState.value.error).isNotNull()
+        coVerify(exactly = 0) { configRepository.publishStartupConfig(any()) }
+        coVerify(exactly = 0) { serverDataStore.setServerUrl(any()) }
+    }
+
+    @Test
     fun `add mode starts a pending session and never touches the global URL`() = runTest(testDispatcher) {
         val viewModel = createViewModel(addAccount = true)
         advanceUntilIdle()
@@ -88,6 +105,7 @@ class ServerUrlViewModelTest {
         assertThat(viewModel.uiState.value.isValidated).isTrue()
         coVerify(exactly = 1) { accountSwitcher.beginAdd(pendingUrl) }
         coVerify(exactly = 1) { accountSwitcher.attachPendingConfig(config) }
+        coVerify(exactly = 0) { accountSwitcher.prepareForSignIn(any()) }
         coVerify(exactly = 0) { serverDataStore.setServerUrl(any()) }
         coVerify(exactly = 0) { configRepository.publishStartupConfig(any()) }
     }
@@ -147,6 +165,7 @@ class ServerUrlViewModelTest {
             assertThat(viewModel.uiState.value.error).isEqualTo("not librechat")
             coVerify(exactly = 1) { accountSwitcher.cancelAdd() }
             coVerify(exactly = 0) { accountSwitcher.beginAdd(any()) }
+            coVerify(exactly = 0) { accountSwitcher.prepareForSignIn(any()) }
             coVerify(exactly = 0) { serverDataStore.setServerUrl(any()) }
         }
 
@@ -176,6 +195,7 @@ class ServerUrlViewModelTest {
         advanceUntilIdle()
 
         assertThat(viewModel.uiState.value.error).isEqualTo("nope")
+        coVerify(exactly = 0) { accountSwitcher.prepareForSignIn(any()) }
         coVerify(exactly = 0) { serverDataStore.setServerUrl(any()) }
         coVerify(exactly = 0) { configRepository.publishStartupConfig(any()) }
         coVerify(exactly = 0) { accountSwitcher.beginAdd(any()) }
@@ -193,7 +213,7 @@ class ServerUrlViewModelTest {
 
         coVerifyOrder {
             configRepository.resolveServer(listOf(pendingUrl), any())
-            serverDataStore.setServerUrl(pendingUrl)
+            accountSwitcher.prepareForSignIn(pendingUrl)
             configRepository.publishStartupConfig(config)
         }
         assertThat(viewModel.uiState.value.isValidated).isTrue()
@@ -255,7 +275,7 @@ class ServerUrlViewModelTest {
         coVerifyOrder {
             serverRepository.setHeaders(pendingUrl, mapOf("CF-Access-Client-Id" to "id-value"))
             configRepository.resolveServer(listOf(pendingUrl), mapOf("CF-Access-Client-Id" to "id-value"))
-            serverDataStore.setServerUrl(pendingUrl)
+            accountSwitcher.prepareForSignIn(pendingUrl)
         }
     }
 
@@ -523,7 +543,7 @@ class ServerUrlViewModelTest {
         viewModel.validateAndConnect()
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { serverDataStore.setServerUrl(pendingUrl) }
+        coVerify(exactly = 1) { accountSwitcher.prepareForSignIn(pendingUrl) }
         // The cleaned address has no path left, so there is nothing to fall back from.
         coVerify(exactly = 1) { configRepository.resolveServer(listOf(pendingUrl), any()) }
         assertThat(viewModel.uiState.value.url).isEqualTo(pendingUrl)
@@ -543,7 +563,7 @@ class ServerUrlViewModelTest {
         viewModel.confirmHttpConnection()
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { serverDataStore.setServerUrl(httpUrl) }
+        coVerify(exactly = 1) { accountSwitcher.prepareForSignIn(httpUrl) }
         assertThat(viewModel.uiState.value.url).isEqualTo(httpUrl)
     }
 
@@ -580,7 +600,7 @@ class ServerUrlViewModelTest {
         viewModel.validateAndConnect()
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { serverDataStore.setServerUrl(subpath) }
+        coVerify(exactly = 1) { accountSwitcher.prepareForSignIn(subpath) }
         assertThat(viewModel.uiState.value.url).isEqualTo(subpath)
     }
 
@@ -594,7 +614,8 @@ class ServerUrlViewModelTest {
         viewModel.validateAndConnect()
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { serverDataStore.setServerUrl(origin) }
+        coVerify(exactly = 1) { accountSwitcher.prepareForSignIn(origin) }
+        coVerify(exactly = 0) { accountSwitcher.prepareForSignIn(pastedPage) }
         coVerify(exactly = 0) { serverDataStore.setServerUrl(pastedPage) }
         assertThat(viewModel.uiState.value.url).isEqualTo(origin)
         assertThat(viewModel.uiState.value.isValidated).isTrue()
@@ -662,6 +683,7 @@ class ServerUrlViewModelTest {
 
         assertThat(viewModel.uiState.value.headersSaveFailure).isEqualTo(HeaderWriteFailure.StorageUnavailable)
         assertThat(viewModel.uiState.value.isValidated).isFalse()
+        coVerify(exactly = 0) { accountSwitcher.prepareForSignIn(any()) }
         coVerify(exactly = 0) { serverDataStore.setServerUrl(any()) }
     }
 }

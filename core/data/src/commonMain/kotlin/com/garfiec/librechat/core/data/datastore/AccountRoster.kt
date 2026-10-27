@@ -80,6 +80,11 @@ class AccountRoster(
         }
     }
 
+    /** Clear the active pointer while retaining the roster entries for later sign-in. */
+    suspend fun deactivate() {
+        dataStore.edit { prefs -> prefs.remove(KEY_ACTIVE_ACCOUNT_ID) }
+    }
+
     /**
      * Refresh [accountId]'s display label + avatar — one atomic edit, touching nothing else (no
      * activation, no recency bump). The session-start backfill path: a migrated pre-roster entry is

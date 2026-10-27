@@ -124,6 +124,23 @@ class AccountSwitcher(
         private set
 
     /**
+     * Enter normal sign-in on [serverUrl], ending any identity left behind by a sign-in route.
+     * Clear the old credentials and persisted binding before publishing the new URL, under the same
+     * barrier as account switches. Roster entries and account data remain available for re-auth.
+     * Add-account uses [beginAdd] instead and retains the live session.
+     */
+    suspend fun prepareForSignIn(serverUrl: String) = switchGate.withSwitch {
+        withContext(NonCancellable) {
+            pendingAdd = null
+            activeAccountProvider.clear()
+            tokenManager.onAccountCleared()
+            roster.deactivate()
+            switchCacheCleaner.clearOnSwitch()
+            serverDataStore.setServerUrl(serverUrl)
+        }
+    }
+
+    /**
      * Switch the active account to [accountId]. No-op when it isn't in the roster, is already active,
      * or its session has expired (its slot is empty, so every request on it would 401). Returns whether
      * the switch happened.

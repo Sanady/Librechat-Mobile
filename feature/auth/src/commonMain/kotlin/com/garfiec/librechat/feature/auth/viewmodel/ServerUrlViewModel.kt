@@ -332,7 +332,11 @@ class ServerUrlViewModel(
                         return
                     }
                 } else {
-                    serverDataStore.setServerUrl(winner)
+                    val prepared = suspendRunCatching { accountSwitcher.prepareForSignIn(winner) }
+                    if (prepared.isFailure) {
+                        showError(Result.Error(prepared.exceptionOrNull()))
+                        return
+                    }
                     configRepository.publishStartupConfig(resolution.config)
                 }
                 _uiState.value = _uiState.value.copy(url = winner, isLoading = false, isValidated = true)
