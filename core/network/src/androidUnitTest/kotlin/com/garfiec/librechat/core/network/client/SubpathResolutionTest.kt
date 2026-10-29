@@ -1,6 +1,5 @@
 package com.garfiec.librechat.core.network.client
 
-import com.garfiec.librechat.core.common.identity.AccountId
 import com.garfiec.librechat.core.common.identity.AccountState
 import com.garfiec.librechat.core.common.identity.InMemoryActiveAccountProvider
 import com.google.common.truth.Truth.assertThat
@@ -72,7 +71,7 @@ class SubpathResolutionTest {
                 Resolver.Barrier -> install(SwitchBarrierPlugin) {
                     switchGate = SwitchGate(
                         activeAccountProvider = InMemoryActiveAccountProvider(
-                            AccountState.Resolved(AccountId("acct-a")),
+                            AccountState.Resolved(null),
                         ),
                         serverUrlProvider = provider,
                         tokenManager = NoTokens(),

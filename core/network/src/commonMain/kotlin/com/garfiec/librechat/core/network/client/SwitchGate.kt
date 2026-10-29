@@ -2,6 +2,7 @@ package com.garfiec.librechat.core.network.client
 
 import com.garfiec.librechat.core.common.identity.ActiveAccountProvider
 import com.garfiec.librechat.core.common.identity.currentAccountId
+import com.garfiec.librechat.core.common.identity.deriveServerId
 import io.ktor.util.AttributeKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -146,6 +147,14 @@ class SwitchGate(
         val snapshot = lock.withLock {
             val accountId = activeAccountProvider.currentAccountId()?.value
             val baseUrl = serverUrlProvider.getBaseUrl()
+            // Account ids include the issuing deployment's server id. Atomic reads alone cannot
+            // protect against a URL changed outside withSwitch (for example, a stale sign-in route).
+            // Refuse the request BEFORE reading credentials or attempting proactive/reactive refresh.
+            check(accountId == null ||
+                accountId.substringBefore(':') == runCatching { deriveServerId(baseUrl).value }.getOrNull()
+            ) {
+                "Active account does not belong to the configured server"
+            }
             RequestIdentity(
                 baseUrl = baseUrl,
                 accountId = accountId,
@@ -191,6 +200,9 @@ class SwitchGate(
      * snapshotted, whose tokens are retained). [flip] must not perform network I/O.
      */
     suspend fun <T> withSwitch(flip: suspend () -> T): T {
+        // A cold-start seed must not re-publish its old binding after a sign-in transition cleared it.
+        // Await before taking the lock; seeding drives the providers this gate protects.
+        accountReadyGate?.awaitReady()
         open.value = false
         return try {
             lock.withLock { flip() }
