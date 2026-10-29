@@ -10,6 +10,7 @@ import com.garfiec.librechat.core.common.identity.ActiveAccountProvider
 import com.garfiec.librechat.core.common.identity.accountTransitions
 import com.garfiec.librechat.core.common.identity.currentAccountId
 import com.garfiec.librechat.core.common.result.Result
+import com.garfiec.librechat.core.data.bookmarks.BookmarkPickerController
 import com.garfiec.librechat.core.data.datastore.SettingsDataStore
 import com.garfiec.librechat.core.data.repository.ChatRepository
 import com.garfiec.librechat.core.data.repository.ConfigRepository
@@ -17,11 +18,11 @@ import com.garfiec.librechat.core.data.repository.ConversationRepository
 import com.garfiec.librechat.core.data.repository.ProjectRepository
 import com.garfiec.librechat.core.data.repository.RoleRepository
 import com.garfiec.librechat.core.data.repository.TagRepository
+import com.garfiec.librechat.core.data.repository.bookmarksEnabled
 import com.garfiec.librechat.core.data.share.ShareLinkController
 import com.garfiec.librechat.core.data.share.ShareLinkControllerFactory
 import com.garfiec.librechat.core.model.ChatProject
 import com.garfiec.librechat.core.model.Conversation
-import com.garfiec.librechat.core.model.ConversationTag
 import com.garfiec.librechat.core.model.EndpointConfig
 import com.garfiec.librechat.core.model.SAVED_TAG
 import com.garfiec.librechat.core.model.config.ModelSpecs
@@ -31,13 +32,18 @@ import com.garfiec.librechat.core.model.permissions.PermissionType
 import com.garfiec.librechat.core.model.permissions.UserRolePermissions
 import com.garfiec.librechat.core.model.permissions.canCreateSharedLinks
 import com.garfiec.librechat.core.model.permissions.hasAccessOrPermissive
+import com.garfiec.librechat.feature.conversations.components.message
 import com.garfiec.librechat.feature.conversations.export.ConversationExporter
 import com.garfiec.librechat.feature.conversations.export.ExportFormat
+import com.garfiec.librechat.feature.conversations.resources.Res
+import com.garfiec.librechat.feature.conversations.resources.favorite_update_failed
 import com.garfiec.librechat.feature.conversations.viewmodel.ConversationListActionsDelegate
 import com.garfiec.librechat.feature.conversations.viewmodel.ConversationListEvent
 import com.garfiec.librechat.feature.conversations.viewmodel.ProjectActionsDelegate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -105,17 +111,16 @@ class DrawerViewModel(
             .map { list -> list.filter { it.pinned == true } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Inputs for the drawer long-press action menu: the user-defined tags (excluding favorites,
-    // same filter as ConversationListViewModel.observeTags) for the tag picker, plus the
-    // config-driven shared-links flag and the SHARED_LINKS role permission that gate the Share action.
+    // Inputs for the drawer long-press action menu and the bookmark surfaces: the config-driven
+    // shared-links flag and the SHARED_LINKS role permission that gate the Share action, and the one
+    // bookmarks gate (BOOKMARKS USE and interface.bookmarks) behind the stars, Favorites and the
+    // checklist.
     private val drawerActionMenuState: StateFlow<DrawerActionMenuState> =
         combine(
-            tagRepository.observeTags()
-                .map { tags -> tags.filter { it.count > 0 && it.tag != SAVED_TAG } },
             configRepository.startupConfig,
             configRepository.detectedBackendVersion,
             roleRepository.userPermissions,
-        ) { tags, config, version, permissions ->
+        ) { config, version, permissions ->
             // Gate fail-closed on unknown version so older servers don't surface actions
             // they'd 404 on. Thresholds differ: POST /api/convos/pin landed BETWEEN
             // v0.8.7-rc1 and v0.8.7 final (upstream 743f57f63), so pin needs the final;
@@ -128,7 +133,13 @@ class DrawerViewModel(
             // top would only add a second way to get it wrong. `isSchedulesEnabled` is the one
             // reader; do not fold it into a generic interface-flag helper.
             val schedulesEnabled = isSchedulesEnabled(config?.interfaceConfig?.schedules)
-            DrawerActionMenuState(tags, canShare, pinSupported, projectsSupported, schedulesEnabled)
+            DrawerActionMenuState(
+                bookmarksEnabled = bookmarksEnabled(permissions, config?.interfaceConfig),
+                sharedLinksEnabled = canShare,
+                pinEnabled = pinSupported,
+                projectsEnabled = projectsSupported,
+                schedulesEnabled = schedulesEnabled,
+            )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DrawerActionMenuState())
 
     // Chat Projects (v0.8.7). Loaded lazily for the move-to-project picker and the drawer's Projects
@@ -139,6 +150,9 @@ class DrawerViewModel(
     private var projectsLoadJob: Job? = null
     private var projectOrderSaveJob: Job? = null
     private var expandedChatsJob: Job? = null
+
+    /** Parent of the star's writes still queued or out, which an account switch drops. */
+    private val favoriteWrites = SupervisorJob(viewModelScope.coroutineContext[Job])
     private var lastProjectsReload: TimeSource.Monotonic.ValueTimeMark? = null
 
     // Inline project-chat accordion for the drawer Projects tab. Network-direct per project (Room
@@ -187,6 +201,13 @@ class DrawerViewModel(
     // is momentarily absent — e.g. an action's result arriving as the drawer leaves composition.
     private val _events = MutableSharedFlow<ConversationListEvent>(extraBufferCapacity = 1)
     val events: SharedFlow<ConversationListEvent> = _events.asSharedFlow()
+
+    /**
+     * The long-press menu's "Bookmarks…" checklist, one chat at a time. A tick or create that fails
+     * says so in the sheet; a load that closes it, or a save that fails after it closed, surfaces as
+     * the drawer's error toasts.
+     */
+    val bookmarkPicker = BookmarkPickerController(tagRepository, viewModelScope)
 
     // Shared row-action logic (rename/archive/delete/share/duplicate/export) — the same delegate
     // ConversationListViewModel and ProjectChatsViewModel use, so the drawer long-press menu surfaces
@@ -296,11 +317,10 @@ class DrawerViewModel(
             hasMore = hasMore,
             agentsEnabled = perms.agentsEnabled,
             marketplaceEnabled = perms.marketplaceEnabled,
-            bookmarksEnabled = perms.bookmarksEnabled,
+            bookmarksEnabled = actionMenu.bookmarksEnabled,
             skillsEnabled = perms.skillsEnabled,
             // BOTH halves, in upstream's order: the permission, then the server flag.
             schedulesEnabled = perms.schedulesPermitted && actionMenu.schedulesEnabled,
-            availableTags = actionMenu.availableTags,
             sharedLinksEnabled = actionMenu.sharedLinksEnabled,
             pinEnabled = actionMenu.pinEnabled,
             projectsEnabled = actionMenu.projectsEnabled,
@@ -317,7 +337,7 @@ class DrawerViewModel(
     }
 
     private data class DrawerActionMenuState(
-        val availableTags: List<ConversationTag> = emptyList(),
+        val bookmarksEnabled: Boolean = true,
         val sharedLinksEnabled: Boolean = false,
         val pinEnabled: Boolean = false,
         val projectsEnabled: Boolean = false,
@@ -382,6 +402,15 @@ class DrawerViewModel(
         viewModelScope.launch {
             projectRepository.revision.drop(1).collect { reloadProjects(force = true) }
         }
+        viewModelScope.launch {
+            bookmarkPicker.failures.collect { _events.emit(ConversationListEvent.ShowErrorRes(it.message)) }
+        }
+        // Bookmarks turned off (role or server config) while the checklist was up: take it down.
+        viewModelScope.launch {
+            drawerActionMenuState.map { it.bookmarksEnabled }.distinctUntilChanged().collect { enabled ->
+                if (!enabled) bookmarkPicker.close()
+            }
+        }
         // The active account changed underneath this Activity-scoped VM. This is the drawer half of
         // the reset the nav shell also performs (NavHostViewModel runs the nav/session half against
         // its own independent accountTransitions() subscription — the flow is cold per-collector, so
@@ -393,6 +422,10 @@ class DrawerViewModel(
                 _activeJobIds.value = emptySet()
                 // A share sheet open on the outgoing account's chat must not act on the new one.
                 conversationActions.closeShareSheet()
+                // Ticks still queued for the outgoing account's chat too: their legs would reach the
+                // new account's server.
+                bookmarkPicker.closeForAccountSwitch()
+                favoriteWrites.cancelChildren()
                 // A load started for the outgoing account would otherwise land after this reset.
                 projectsLoadJob?.cancel()
                 // An order not yet written for an account being signed out would outlive its purge.
@@ -424,11 +457,15 @@ class DrawerViewModel(
 
     /**
      * Pull-to-refresh: refreshes the drawer conversation list + favorites + tags. The explicit tag
-     * refresh is wanted here because a manual refresh has no session-task machinery behind it.
+     * refresh is wanted here because a manual refresh has no session-task machinery behind it. Not
+     * while bookmarks are off: the tags route answers 403 to a role without BOOKMARKS USE.
      */
     fun refreshConversations() {
         conversationListStateHolder.refreshConversations()
-        viewModelScope.launch { tagRepository.refreshTags() }
+        // Read at the source, not from the drawer's WhileSubscribed state, which is permissive until collected.
+        val enabled =
+            bookmarksEnabled(roleRepository.userPermissions.value, configRepository.startupConfig.value?.interfaceConfig)
+        if (enabled) viewModelScope.launch { tagRepository.refreshTags() }
     }
 
     /**
@@ -449,20 +486,25 @@ class DrawerViewModel(
         conversationListStateHolder.onSearchQueryChanged(query)
     }
 
-    fun toggleFavorite(conversationId: String, currentTags: List<String>) {
-        viewModelScope.launch {
-            val result = tagRepository.toggleFavorite(conversationId, currentTags)
+    /**
+     * The star or the menu's Favorite on [conversationId]. [favorite] is what the user asked for (the
+     * opposite of what the row showed), so a stale row or a repeat tap changes nothing.
+     */
+    fun setFavorite(conversationId: String, favorite: Boolean) {
+        viewModelScope.launch(favoriteWrites) {
+            val result = tagRepository.setConversationTag(conversationId, SAVED_TAG, attached = favorite)
             if (result is Result.Error) {
                 Logger.w(result.exception) { "Failed to toggle favorite for $conversationId" }
                 // Surface the failure like the row-action delegate does, instead of only logging —
                 // otherwise a failed favorite from the drawer gives the user no feedback.
-                _events.emit(ConversationListEvent.ShowError(result.message ?: "Failed to update favorite"))
+                _events.emit(ConversationListEvent.ShowErrorRes(Res.string.favorite_update_failed))
             }
         }
     }
 
     // --- Drawer conversation action menu (long-press). Row actions route through the shared
-    // ConversationListActionsDelegate; favorite/pin/tags stay local (different signatures). ---
+    // ConversationListActionsDelegate; favorite/pin stay local (different signatures), bookmarks
+    // go through [bookmarkPicker]. ---
 
     fun renameConversation(id: String, newTitle: String) = conversationActions.renameConversation(id, newTitle)
 
@@ -658,32 +700,16 @@ class DrawerViewModel(
     fun exportConversation(conversationId: String, title: String?, format: ExportFormat) =
         conversationActions.exportConversation(conversationId, title, format)
 
-    /**
-     * Persists the user-chosen tags for [conversationId], preserving favorite status.
-     * [currentTags] is the conversation's existing tag list (to detect the SAVED_TAG).
-     */
-    fun updateConversationTags(conversationId: String, currentTags: List<String>, userTags: List<String>) {
-        val wasFavorited = SAVED_TAG in currentTags
-        val cleaned = userTags.filterNot { it == SAVED_TAG }
-        val finalTags = if (wasFavorited) cleaned + SAVED_TAG else cleaned
-        viewModelScope.launch {
-            when (tagRepository.setConversationTags(conversationId, finalTags)) {
-                is Result.Success -> {
-                    tagRepository.refreshTags()
-                }
-                is Result.Error -> {
-                    _events.emit(ConversationListEvent.ShowError("Failed to update tags"))
-                }
-                is Result.Loading -> { /* no-op */ }
-            }
-        }
+    /** Opens the bookmark checklist on [conversationId]: its bookmarks are read from the server first. */
+    fun openBookmarks(conversationId: String) {
+        if (!drawerUiState.value.bookmarksEnabled) return
+        bookmarkPicker.open(conversationId)
     }
 }
 
 internal data class DrawerPermissionFlags(
     val agentsEnabled: Boolean = true,
     val marketplaceEnabled: Boolean = true,
-    val bookmarksEnabled: Boolean = true,
     /** Fail-closed on the capability half, so false until the endpoint config arrives. */
     val skillsEnabled: Boolean = false,
     /** The permission half only. Scheduled chats need the server flag too — see the combine. */
@@ -698,7 +724,6 @@ internal fun drawerPermissionFlags(role: UserRolePermissions?, agentsCapabilitie
     DrawerPermissionFlags(
         agentsEnabled = role.hasAccessOrPermissive(PermissionType.AGENTS, Permission.USE),
         marketplaceEnabled = role.hasAccessOrPermissive(PermissionType.MARKETPLACE, Permission.USE),
-        bookmarksEnabled = role.hasAccessOrPermissive(PermissionType.BOOKMARKS, Permission.USE),
         skillsEnabled = isSkillsNavEnabled(role, agentsCapabilities),
         schedulesPermitted = role.hasAccessOrPermissive(PermissionType.SCHEDULES, Permission.USE),
     )

@@ -523,55 +523,10 @@ class ConversationListViewModelTest {
     }
 
     @Test
-    fun `updateConversationTags persists new tag list when conversation was not favorited`() = runTest {
-        coEvery { tagRepository.setConversationTags("convo-1", listOf("work")) } returns
-            Result.Success(Unit)
-
-        viewModel = createViewModel()
-        advanceUntilIdle()
-
-        val convo = Conversation(conversationId = "convo-1", tags = listOf("old"))
-        viewModel.updateConversationTags(convo, listOf("work"))
-        advanceUntilIdle()
-
-        coVerify { tagRepository.setConversationTags("convo-1", listOf("work")) }
-    }
-
-    @Test
-    fun `updateConversationTags preserves SAVED_TAG when conversation was favorited`() = runTest {
-        coEvery { tagRepository.setConversationTags(any(), any()) } returns Result.Success(Unit)
-
-        viewModel = createViewModel()
-        advanceUntilIdle()
-
-        val convo = Conversation(conversationId = "convo-1", tags = listOf("work", SAVED_TAG))
-        // Picker submits the user-tag list WITHOUT SAVED_TAG (the screen strips it).
-        viewModel.updateConversationTags(convo, listOf("projects"))
-        advanceUntilIdle()
-
-        coVerify { tagRepository.setConversationTags("convo-1", listOf("projects", SAVED_TAG)) }
-    }
-
-    @Test
-    fun `updateConversationTags strips SAVED_TAG from picker submission when not favorited`() = runTest {
-        coEvery { tagRepository.setConversationTags(any(), any()) } returns Result.Success(Unit)
-
-        viewModel = createViewModel()
-        advanceUntilIdle()
-
-        val convo = Conversation(conversationId = "convo-1", tags = listOf("work"))
-        // Defensive: if the picker ever submits SAVED_TAG on an unfavorited convo, drop it.
-        viewModel.updateConversationTags(convo, listOf("projects", SAVED_TAG))
-        advanceUntilIdle()
-
-        coVerify { tagRepository.setConversationTags("convo-1", listOf("projects")) }
-    }
-
-    @Test
-    fun `toggleFavorite on unfavorited convo delegates to repo`() = runTest {
+    fun `toggleFavorite on unfavorited convo asks the repo to add Saved`() = runTest {
         coEvery {
-            tagRepository.toggleFavorite(any(), any())
-        } returns Result.Success(Unit)
+            tagRepository.setConversationTag(any(), any(), any())
+        } returns Result.Success(emptyList())
 
         viewModel = createViewModel()
         advanceUntilIdle()
@@ -580,19 +535,16 @@ class ConversationListViewModelTest {
         viewModel.toggleFavorite(convo)
         advanceUntilIdle()
 
-        coVerify {
-            tagRepository.toggleFavorite(
-                conversationId = "convo-1",
-                currentTags = listOf("work"),
-            )
+        coVerify(exactly = 1) {
+            tagRepository.setConversationTag("convo-1", SAVED_TAG, attached = true)
         }
     }
 
     @Test
-    fun `toggleFavorite on favorited convo delegates to repo`() = runTest {
+    fun `toggleFavorite on favorited convo asks the repo to remove Saved`() = runTest {
         coEvery {
-            tagRepository.toggleFavorite(any(), any())
-        } returns Result.Success(Unit)
+            tagRepository.setConversationTag(any(), any(), any())
+        } returns Result.Success(emptyList())
 
         viewModel = createViewModel()
         advanceUntilIdle()
@@ -604,11 +556,8 @@ class ConversationListViewModelTest {
         viewModel.toggleFavorite(convo)
         advanceUntilIdle()
 
-        coVerify {
-            tagRepository.toggleFavorite(
-                conversationId = "convo-1",
-                currentTags = listOf("work", SAVED_TAG),
-            )
+        coVerify(exactly = 1) {
+            tagRepository.setConversationTag("convo-1", SAVED_TAG, attached = false)
         }
     }
 
@@ -622,7 +571,7 @@ class ConversationListViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 0) {
-            tagRepository.toggleFavorite(any(), any())
+            tagRepository.setConversationTag(any(), any(), any())
         }
     }
 

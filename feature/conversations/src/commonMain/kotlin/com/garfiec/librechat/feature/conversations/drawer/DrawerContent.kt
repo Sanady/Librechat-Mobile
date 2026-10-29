@@ -65,6 +65,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddComment
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Folder
@@ -141,7 +142,6 @@ import com.garfiec.librechat.core.data.search.FtsQueryPlan
 import com.garfiec.librechat.core.data.search.MessageSearchHit
 import com.garfiec.librechat.core.data.search.TitleMatch
 import com.garfiec.librechat.core.model.ChatProject
-import com.garfiec.librechat.core.model.SAVED_TAG
 import com.garfiec.librechat.core.ui.components.AdaptiveCircularProgressIndicator
 import com.garfiec.librechat.core.ui.components.AdaptiveDivider
 import com.garfiec.librechat.core.ui.components.EndpointIcon
@@ -160,9 +160,11 @@ import com.garfiec.librechat.core.ui.datetime.LocalDateTimeFormat
 import com.garfiec.librechat.core.ui.datetime.LocalRelativeTimeReference
 import com.garfiec.librechat.core.ui.datetime.resolve
 import com.garfiec.librechat.core.ui.glass.GlassControlColors
+import com.garfiec.librechat.core.ui.resources.bookmarks
 import com.garfiec.librechat.core.ui.theme.isLiquidGlass
 import com.garfiec.librechat.core.ui.theme.isSurfaceDark
 import com.garfiec.librechat.core.ui.theme.searchMatchColor
+import com.garfiec.librechat.feature.conversations.components.BookmarkPickerHost
 import com.garfiec.librechat.feature.conversations.components.ConversationActionDialogs
 import com.garfiec.librechat.feature.conversations.components.ConversationActionEffects
 import com.garfiec.librechat.feature.conversations.components.ConversationActionsMenu
@@ -172,12 +174,14 @@ import com.garfiec.librechat.feature.conversations.components.ProjectMenuButton
 import com.garfiec.librechat.feature.conversations.components.ProjectPicker
 import com.garfiec.librechat.feature.conversations.components.ProjectTile
 import com.garfiec.librechat.feature.conversations.components.ShareLinkSheetHost
-import com.garfiec.librechat.feature.conversations.components.TagPicker
+import com.garfiec.librechat.feature.conversations.components.excludedFromReorder
+import com.garfiec.librechat.feature.conversations.components.lazyReorder
+import com.garfiec.librechat.feature.conversations.components.rememberLazyReorderState
+import com.garfiec.librechat.feature.conversations.components.rememberPickUpHaptic
 import com.garfiec.librechat.feature.conversations.export.ExportFormat
 import com.garfiec.librechat.feature.conversations.export.ExportFormatPicker
 import com.garfiec.librechat.feature.conversations.resources.Res
 import com.garfiec.librechat.feature.conversations.resources.agents
-import com.garfiec.librechat.feature.conversations.resources.bookmark
 import com.garfiec.librechat.feature.conversations.resources.cd_close_search
 import com.garfiec.librechat.feature.conversations.resources.cd_collapse_section
 import com.garfiec.librechat.feature.conversations.resources.cd_conversation_actions
@@ -185,6 +189,7 @@ import com.garfiec.librechat.feature.conversations.resources.cd_expand_section
 import com.garfiec.librechat.feature.conversations.resources.cd_open_search
 import com.garfiec.librechat.feature.conversations.resources.cd_search
 import com.garfiec.librechat.feature.conversations.resources.drawer_running_chats
+import com.garfiec.librechat.feature.conversations.resources.favorite
 import com.garfiec.librechat.feature.conversations.resources.favorites
 import com.garfiec.librechat.feature.conversations.resources.files
 import com.garfiec.librechat.feature.conversations.resources.new_chat
@@ -199,7 +204,7 @@ import com.garfiec.librechat.feature.conversations.resources.project_new_chat_in
 import com.garfiec.librechat.feature.conversations.resources.project_unassigned
 import com.garfiec.librechat.feature.conversations.resources.projects
 import com.garfiec.librechat.feature.conversations.resources.projects_all
-import com.garfiec.librechat.feature.conversations.resources.remove_bookmark
+import com.garfiec.librechat.feature.conversations.resources.remove_favorite
 import com.garfiec.librechat.feature.conversations.resources.save
 import com.garfiec.librechat.feature.conversations.resources.schedules
 import com.garfiec.librechat.feature.conversations.resources.search_open_all
@@ -210,6 +215,7 @@ import com.garfiec.librechat.feature.conversations.resources.show_more
 import com.garfiec.librechat.feature.conversations.resources.skills
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import com.garfiec.librechat.core.ui.resources.Res as CoreRes
 
 // Pre-computed shapes to avoid creating new ones per item per frame
 private val ItemShape = RoundedCornerShape(8.dp)
@@ -255,6 +261,7 @@ fun DrawerContent(
     onFilesClick: () -> Unit,
     onSkillsClick: () -> Unit,
     onSchedulesClick: () -> Unit,
+    onBookmarksClick: () -> Unit,
     accounts: List<AccountUiModel>,
     modifier: Modifier = Modifier,
     onOpenProjectsIndex: () -> Unit = {},
@@ -306,6 +313,7 @@ fun DrawerContent(
             showAccountSheet = false
             removeAccountTarget = null
             viewModel.closeShareSheet()
+            viewModel.bookmarkPicker.close()
         }
     }
     LaunchedEffect(isOpen, libraryTab) {
@@ -384,7 +392,8 @@ fun DrawerContent(
         onFilesClick = onFilesClick,
         onSkillsClick = onSkillsClick,
         onSchedulesClick = onSchedulesClick,
-        onToggleFavorite = { data -> viewModel.toggleFavorite(data.conversationId, data.tags) },
+        onBookmarksClick = onBookmarksClick,
+        onToggleFavorite = { data -> viewModel.setFavorite(data.conversationId, favorite = !data.isFavorite) },
         onRefresh = viewModel::refreshConversations,
         onLoadMore = viewModel::loadMoreConversations,
         onRename = { id, newTitle -> viewModel.renameConversation(id, newTitle) },
@@ -408,13 +417,14 @@ fun DrawerContent(
         onDeleteProject = viewModel::deleteProject,
         onShare = viewModel::shareConversation,
         onDuplicate = { id, title -> viewModel.duplicateConversation(id, title) },
-        onUpdateTags = { data, tags -> viewModel.updateConversationTags(data.conversationId, data.tags, tags) },
+        onOpenBookmarks = { data -> viewModel.openBookmarks(data.conversationId) },
         onExportFormat = { data, format -> viewModel.exportConversation(data.conversationId, data.title, format) },
         modifier = modifier,
         isOpen = isOpen,
     )
 
     ShareLinkSheetHost(controller = viewModel.shareLink, onDismiss = viewModel::closeShareSheet)
+    BookmarkPickerHost(controller = viewModel.bookmarkPicker)
 
     if (showAccountSheet) {
         AccountSwitcherSheet(
@@ -459,6 +469,7 @@ fun DrawerContent(
     onFilesClick: () -> Unit,
     onSkillsClick: () -> Unit,
     onSchedulesClick: () -> Unit,
+    onBookmarksClick: () -> Unit,
     modifier: Modifier = Modifier,
     // Slot below the footer links (Files, Agents, …) — the stateful wrapper puts the Settings row
     // and the account avatar here, at the bottom of the drawer. Its rows join the footer links'
@@ -494,7 +505,8 @@ fun DrawerContent(
     onNewChatInProject: (projectId: String, projectName: String) -> Unit = { _, _ -> },
     onShare: (String) -> Unit = {},
     onDuplicate: (String, String) -> Unit = { _, _ -> },
-    onUpdateTags: (DrawerConversationDisplayData, List<String>) -> Unit = { _, _ -> },
+    /** Opens the row's bookmark checklist (the stateful drawer hosts it). */
+    onOpenBookmarks: (DrawerConversationDisplayData) -> Unit = {},
     onExportFormat: (DrawerConversationDisplayData, ExportFormat) -> Unit = { _, _ -> },
     /** What the search field shows: the query as typed, ahead of [uiState]'s copy of it. */
     searchFieldText: String = uiState.searchQuery,
@@ -511,7 +523,6 @@ fun DrawerContent(
     // so they survive the per-row menu — which is composed only for the open row — leaving the tree.
     var renameTarget by remember { mutableStateOf<DrawerConversationDisplayData?>(null) }
     var deleteTarget by remember { mutableStateOf<DrawerConversationDisplayData?>(null) }
-    var tagPickerTarget by remember { mutableStateOf<DrawerConversationDisplayData?>(null) }
     var exportPickerTarget by remember { mutableStateOf<DrawerConversationDisplayData?>(null) }
     var projectPickerTarget by remember { mutableStateOf<DrawerConversationDisplayData?>(null) }
 
@@ -834,7 +845,7 @@ fun DrawerContent(
                             onDismiss = { menuRowKey = null },
                             title = data.title,
                             offset = menuOffset,
-                            isBookmarked = data.isFavorite,
+                            isFavorite = data.isFavorite,
                             bookmarksEnabled = uiState.bookmarksEnabled,
                             isPinned = data.isPinned,
                             showPinAction = uiState.pinEnabled,
@@ -845,13 +856,13 @@ fun DrawerContent(
                                 projectPickerTarget = data
                             },
                             showShareAction = uiState.sharedLinksEnabled,
-                            onBookmarkToggle = { onToggleFavorite(data) },
+                            onFavoriteToggle = { onToggleFavorite(data) },
                             onRenameRequest = { renameTarget = data },
                             onArchive = { onArchive(data.conversationId) },
                             onDeleteRequest = { deleteTarget = data },
                             onShare = { onShare(data.conversationId) },
                             onDuplicate = { newTitle -> onDuplicate(data.conversationId, newTitle) },
-                            onTags = { tagPickerTarget = data },
+                            onBookmarks = { onOpenBookmarks(data) },
                             onExport = { exportPickerTarget = data },
                             dragSelection = menuDrag,
                         )
@@ -1123,6 +1134,14 @@ fun DrawerContent(
                         dragSelection = dragSelection,
                     )
                 }
+                if (uiState.bookmarksEnabled) {
+                    DrawerFooterItem(
+                        icon = Icons.Default.Bookmark,
+                        label = stringResource(CoreRes.string.bookmarks),
+                        onClick = onBookmarksClick,
+                        dragSelection = dragSelection,
+                    )
+                }
                 DrawerFooterItem(
                     icon = Icons.Default.Folder,
                     label = stringResource(Res.string.files),
@@ -1156,15 +1175,6 @@ fun DrawerContent(
 
     // Secondary pickers opened from the long-press action menu. Rendered as overlay bottom
     // sheets, so their position in the tree doesn't matter.
-    tagPickerTarget?.let { target ->
-        TagPicker(
-            availableTags = uiState.availableTags,
-            currentTags = target.tags.filterNot { it == SAVED_TAG },
-            onTagsChange = { newTags -> onUpdateTags(target, newTags) },
-            onDismiss = { tagPickerTarget = null },
-        )
-    }
-
     exportPickerTarget?.let { target ->
         ExportFormatPicker(
             onFormatSelect = { format ->
@@ -1392,10 +1402,10 @@ private fun DrawerProjectsList(
     }
 
     val listState = rememberLazyListState()
-    val reorder = rememberProjectFolderReorderState(listState)
+    val reorder = rememberLazyReorderState(listState)
     val projectIds = remember(projects) { projects.map { it.id } }
     val currentProjectIds by rememberUpdatedState(projectIds)
-    LaunchedEffect(projects) { reorder.onProjectsChanged() }
+    LaunchedEffect(projects) { reorder.onItemsChanged() }
     val byId = remember(projects) { projects.associateBy { it.id } }
     val indexOf = remember(projectIds) { projectIds.withIndex().associate { it.value to it.index } }
     val shownIds = reorder.shownIds(projectIds)
@@ -1416,9 +1426,9 @@ private fun DrawerProjectsList(
         state = listState,
         modifier = modifier
             .fillMaxWidth()
-            .projectFolderReorder(
+            .lazyReorder(
                 state = reorder,
-                projectIds = { currentProjectIds },
+                ids = { currentProjectIds },
                 onPickUp = pickUp,
                 onDrop = { currentOnReorder(it) },
             ),
@@ -1503,6 +1513,8 @@ private fun DrawerProjectsList(
                 menuContent = {
                     // Laid out at the slot's size; M3 still gives it a full-size touch target.
                     ProjectMenuButton(
+                        // Holding the ⋮ opens its menu; without this the folder would lift too.
+                        modifier = Modifier.excludedFromReorder(reorder),
                         buttonSize = ProjectMenuSlot,
                         onNewChat = { onNewChatInProject(folder.id, folder.name) },
                         onEdit = { editTarget = folder },
@@ -1647,11 +1659,12 @@ private fun ProjectFolderAccordion(
 private fun DrawerConversationItem(
     data: DrawerConversationDisplayData,
     onClick: () -> Unit,
+    /** Bookmarks are on: the favorite star shows, leading (when favorited) and as the toggle. */
+    showBookmarkToggle: Boolean,
     modifier: Modifier = Modifier,
     onToggleFavorite: () -> Unit = {},
     onLongPress: () -> Unit = {},
     onMenuCancel: () -> Unit = {},
-    showBookmarkToggle: Boolean = true,
     // While searching: the query, so the title's matching words are marked.
     searchQuery: String? = null,
     menuContent: @Composable (DpOffset, MenuDragSelection) -> Unit = { _, _ -> },
@@ -1716,7 +1729,7 @@ private fun DrawerConversationItem(
                 Spacer(modifier = Modifier.width(8.dp))
             }
 
-            if (data.isFavorite) {
+            if (showBookmarkToggle && data.isFavorite) {
                 Icon(
                     imageVector = Icons.Default.Star,
                     contentDescription = null,
@@ -1796,9 +1809,9 @@ private fun DrawerConversationItem(
                 Icon(
                     imageVector = if (data.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
                     contentDescription = if (data.isFavorite) {
-                        stringResource(Res.string.remove_bookmark)
+                        stringResource(Res.string.remove_favorite)
                     } else {
-                        stringResource(Res.string.bookmark)
+                        stringResource(Res.string.favorite)
                     },
                     modifier = Modifier
                         .size(32.dp)

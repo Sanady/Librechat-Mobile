@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,8 +36,9 @@ fun ConversationItem(
     data: ConversationDisplayData,
     onClick: () -> Unit,
     onActionsClick: () -> Unit,
+    // Required: a call site that leaves it out would show the ★ to a gated user.
+    bookmarksEnabled: Boolean,
     modifier: Modifier = Modifier,
-    bookmarksEnabled: Boolean = true,
 ) {
     // Keyed on the reference as well as the row: the reference is what advances with the wall clock,
     // so without it in the key this memo would outlive the label's correctness (see
@@ -132,10 +133,10 @@ fun ConversationItem(
             }
         }
 
-        if (bookmarksEnabled && data.isBookmarked) {
+        if (bookmarksEnabled && data.isFavorite) {
             Icon(
-                imageVector = Icons.Default.Bookmark,
-                contentDescription = stringResource(Res.string.cd_bookmarked),
+                imageVector = Icons.Default.Star,
+                contentDescription = stringResource(Res.string.cd_favorited),
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.primary,
             )

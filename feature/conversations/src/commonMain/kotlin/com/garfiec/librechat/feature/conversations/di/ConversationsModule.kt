@@ -9,6 +9,8 @@ import com.garfiec.librechat.feature.conversations.export.ConversationExporter
 import com.garfiec.librechat.feature.conversations.export.ConversationImporter
 import com.garfiec.librechat.feature.conversations.search.SearchViewModel
 import com.garfiec.librechat.feature.conversations.viewmodel.ArchivedConversationsViewModel
+import com.garfiec.librechat.feature.conversations.viewmodel.BookmarkChatsViewModel
+import com.garfiec.librechat.feature.conversations.viewmodel.BookmarksViewModel
 import com.garfiec.librechat.feature.conversations.viewmodel.ConversationListViewModel
 import com.garfiec.librechat.feature.conversations.viewmodel.ProjectChatsViewModel
 import com.garfiec.librechat.feature.conversations.viewmodel.ProjectsViewModel
@@ -40,6 +42,7 @@ val conversationsModule = module {
     viewModelOf(::ConversationListViewModel)
     viewModelOf(::ArchivedConversationsViewModel)
     viewModelOf(::ProjectsViewModel)
+    viewModelOf(::BookmarksViewModel)
     // Drawer-data half of the nav shell's NavHostViewModel.
     factoryOf(::DrawerSearchSources)
     viewModelOf(::DrawerViewModel)
@@ -67,6 +70,19 @@ val conversationsModule = module {
             roleRepository = get(),
             configRepository = get(),
             projectRepository = get(),
+        )
+    }
+    // The bookmark's name arrives from the navigation layer via parametersOf.
+    viewModel { params ->
+        BookmarkChatsViewModel(
+            tag = params.get(),
+            conversationRepository = get(),
+            tagRepository = get(),
+            shareLinkControllerFactory = get(),
+            conversationExporter = get(),
+            bookmarksGate = get(),
+            roleRepository = get(),
+            configRepository = get(),
         )
     }
 }

@@ -28,6 +28,12 @@ data class PrefetchCandidateDetail(
     fun toCandidate(): PrefetchCandidate = PrefetchCandidate(conversationId, updatedAt, pinned)
 }
 
+/** A row's id and its tags column (a JSON list), for overlaying cached tags on rows from the server. */
+data class ConversationTagsRow(
+    val conversationId: String,
+    val tags: String,
+)
+
 /** What a search hit shows of its conversation. */
 data class ConversationTitle(
     val conversationId: String,
@@ -166,6 +172,18 @@ interface ConversationDao {
 
     @Query("UPDATE conversations SET tags = :tagsJson, updatedAt = :updatedAt WHERE conversationId = :id AND accountId = :accountId")
     suspend fun updateTags(id: String, tagsJson: String, updatedAt: Long, accountId: String)
+
+    /** Rewrites a row's tags without touching `updatedAt`, for a bookmark renamed or deleted account-wide. */
+    @Query("UPDATE conversations SET tags = :tagsJson WHERE conversationId = :id AND accountId = :accountId")
+    suspend fun replaceTags(id: String, tagsJson: String, accountId: String)
+
+    /** Rows that carry at least one tag (archived included). */
+    @Query("SELECT * FROM conversations WHERE accountId = :accountId AND tags != '[]'")
+    suspend fun taggedForAccount(accountId: String): List<ConversationEntity>
+
+    /** The cached tags of each of [ids] this account has a row for. At most ~999 ids per call (SQLite's bind limit). */
+    @Query("SELECT conversationId, tags FROM conversations WHERE accountId = :accountId AND conversationId IN (:ids)")
+    fun observeTagsFor(accountId: String, ids: List<String>): Flow<List<ConversationTagsRow>>
 
     @Query("UPDATE conversations SET chatProjectId = :chatProjectId WHERE conversationId = :id AND accountId = :accountId")
     suspend fun updateChatProjectId(id: String, chatProjectId: String?, accountId: String)

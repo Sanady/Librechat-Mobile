@@ -9,12 +9,14 @@ import com.garfiec.librechat.core.model.Conversation
 import com.garfiec.librechat.core.model.SAVED_TAG
 import com.garfiec.librechat.feature.conversations.export.ConversationExporter
 import com.garfiec.librechat.feature.conversations.export.ExportFormat
+import com.garfiec.librechat.feature.conversations.resources.Res
+import com.garfiec.librechat.feature.conversations.resources.favorite_update_failed
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 
 /**
- * Shared conversation row-action logic (favorite/rename/archive/delete/share/duplicate/tags/export)
+ * Shared conversation row-action logic (favorite/rename/archive/delete/share/duplicate/export)
  * used by both [ConversationListViewModel] (Room-backed) and [ProjectChatsViewModel] (network-direct).
  *
  * Actions emit one-shot UI signals through [events] and run on the host VM's [scope]. After a
@@ -37,13 +39,16 @@ class ConversationListActionsDelegate(
      */
     val shareLink: ShareLinkController = shareLinkControllerFactory.create(scope)
 
+    /**
+     * Favorites [conversation], or un-favorites it if it showed the star. Worked out from what was
+     * shown, not flipped against the server, so a stale row or a repeat tap changes nothing.
+     */
     fun toggleFavorite(conversation: Conversation) {
         val id = conversation.conversationId ?: return
+        val favorite = SAVED_TAG !in conversation.tags
         scope.launch {
-            when (val result = tagRepository.toggleFavorite(id, conversation.tags)) {
-                is Result.Error -> events.emit(
-                    ConversationListEvent.ShowError(result.message ?: "Failed to update favorite"),
-                )
+            when (tagRepository.setConversationTag(id, SAVED_TAG, attached = favorite)) {
+                is Result.Error -> events.emit(ConversationListEvent.ShowErrorRes(Res.string.favorite_update_failed))
                 else -> onMutated()
             }
         }
@@ -100,25 +105,6 @@ class ConversationListActionsDelegate(
                 is Result.Error -> events.emit(
                     ConversationListEvent.ShowError(result.message ?: "Failed to duplicate conversation"),
                 )
-                is Result.Loading -> Unit
-            }
-        }
-    }
-
-    fun updateConversationTags(conversation: Conversation, userTags: List<String>) {
-        val id = conversation.conversationId ?: return
-        val wasFavorited = SAVED_TAG in conversation.tags
-        val cleaned = userTags.filterNot { it == SAVED_TAG }
-        val finalTags = if (wasFavorited) cleaned + SAVED_TAG else cleaned
-        scope.launch {
-            when (tagRepository.setConversationTags(id, finalTags)) {
-                is Result.Success -> {
-                    tagRepository.refreshTags()
-                    // Refresh the host list too: the network-direct project view won't otherwise
-                    // re-fetch the edited row's tags (no-op for the Room-backed list).
-                    onMutated()
-                }
-                is Result.Error -> events.emit(ConversationListEvent.ShowError("Failed to update tags"))
                 is Result.Loading -> Unit
             }
         }
