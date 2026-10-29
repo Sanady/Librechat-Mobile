@@ -48,6 +48,27 @@ class CommonTokenDataStoreOpenIdTest {
     }
 
     @Test
+    fun `the active slot's request auth is served from memory`() = runTest {
+        val store = FakeTokenStore(noRefresh)
+        store.setSession(original)
+        store.onAccountResolved("A")
+        val reads = store.readCount
+        repeat(5) {
+            assertThat(store.getRequestAuthFor("A")).isEqualTo(RequestAuth("old-access", original.cookies.openId))
+        }
+        assertThat(store.readCount).isEqualTo(reads)
+    }
+
+    @Test
+    fun `clearing the staged session with no account bound drops its cached auth`() = runTest {
+        val store = FakeTokenStore(noRefresh)
+        store.setSession(original)
+        store.clearStagedTokens()
+        assertThat(store.getStagedRequestAuth()).isEqualTo(RequestAuth(null))
+        assertThat(store.isAuthenticated).isFalse()
+    }
+
+    @Test
     fun `staging resolving switching and restarting retain account-local bundles`() = runTest {
         val store = FakeTokenStore(noRefresh, mapOf(
             ACTIVE_ACCOUNT_KEY to "A", accessKeyOf("A") to "a-access", refreshKeyOf("A") to "a-refresh",

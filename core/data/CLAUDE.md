@@ -43,8 +43,10 @@ removing legacy keys. A present invalid record never falls back to older credent
 
 OpenID refresh snapshots its complete cookie bundle and epoch under `stateMutex`, releases the lock
 for the POST, and commits the full replacement only while that slot's epoch is unchanged. Request
-snapshots read bearer and marker together. Normal login/2FA replaces the session without OpenID
-markers. All staging, account resolution and teardown paths handle the whole record.
+snapshots read bearer and marker together, from memory for the active slot (`cachedAuth`, updated
+wherever the slot is written): on iOS a storage read is a Keychain IPC. Normal login/2FA replaces
+the session without OpenID markers. All staging, account resolution and teardown paths handle the
+whole record.
 
 
 Tokens are namespaced by account (`acct:<accountId>:access_token`) and several accounts' tokens are

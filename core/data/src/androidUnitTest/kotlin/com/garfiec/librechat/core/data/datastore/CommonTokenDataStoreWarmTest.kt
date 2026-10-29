@@ -58,8 +58,8 @@ class CommonTokenDataStoreWarmTest {
 
         List(16) { async { store.warmTokenCache() } }.awaitAll()
 
-        // One load checks the mirror, session record, and the legacy access key.
-        assertThat(store.readCount).isEqualTo(3)
+        // One load checks the mirror, session record, and the legacy access and refresh keys.
+        assertThat(store.readCount).isEqualTo(4)
     }
 
     @Test
